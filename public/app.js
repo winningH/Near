@@ -33,6 +33,9 @@ const els = {
   attachBtn: $('#attachBtn'),
   fileInput: $('#fileInput'),
   attachmentsPreview: $('#attachmentsPreview'),
+  attachmentsScrollWrapper: $('#attachmentsScrollWrapper'),
+  scrollLeftBtn: $('#scrollLeftBtn'),
+  scrollRightBtn: $('#scrollRightBtn'),
   contextMenu: $('#contextMenu'),
   renameModal: $('#renameModal'),
   renameInput: $('#renameInput'),
@@ -69,6 +72,14 @@ function bindEvents() {
   // 文件附件
   els.attachBtn.addEventListener('click', () => els.fileInput.click());
   els.fileInput.addEventListener('change', handleFileSelect);
+
+  // 滚动箭头
+  els.scrollLeftBtn.addEventListener('click', () => {
+    els.attachmentsPreview.scrollBy({ left: -200, behavior: 'smooth' });
+  });
+  els.scrollRightBtn.addEventListener('click', () => {
+    els.attachmentsPreview.scrollBy({ left: 200, behavior: 'smooth' });
+  });
 
   // 粘贴图片（支持 Ctrl+V 粘贴截图/图片）
   els.messageInput.addEventListener('paste', handlePaste);
@@ -594,18 +605,20 @@ async function handlePaste(e) {
 
 function renderAttachmentsPreview() {
   if (state.attachments.length === 0) {
+    els.attachmentsScrollWrapper.style.display = 'none';
     els.attachmentsPreview.style.display = 'none';
     return;
   }
 
+  els.attachmentsScrollWrapper.style.display = 'block';
   els.attachmentsPreview.style.display = 'flex';
   els.attachmentsPreview.innerHTML = state.attachments
     .map((att, idx) => {
       if (att.type && att.type.startsWith('image/')) {
         return `
-        <div class="preview-item">
+        <div class="preview-item image-preview" onclick="previewImage('${safeUrl(att.url)}')">
           <img src="${safeUrl(att.url)}" alt="${escapeHtml(att.name)}">
-          <button class="preview-remove" onclick="removeAttachment(${idx})">×</button>
+          <button class="preview-remove" onclick="event.stopPropagation(); removeAttachment(${idx})">×</button>
         </div>
       `;
       }
@@ -617,6 +630,24 @@ function renderAttachmentsPreview() {
     `;
     })
     .join('');
+
+  // 检测是否需要显示滚动箭头
+  requestAnimationFrame(() => checkScrollOverflow());
+}
+
+function checkScrollOverflow() {
+  const el = els.attachmentsPreview;
+  const wrapper = els.attachmentsScrollWrapper;
+  if (!el || el.style.display === 'none') {
+    wrapper.classList.remove('show-arrows');
+    return;
+  }
+  // 滚动区域溢出时才显示箭头
+  if (el.scrollWidth > el.clientWidth) {
+    wrapper.classList.add('show-arrows');
+  } else {
+    wrapper.classList.remove('show-arrows');
+  }
 }
 
 function removeAttachment(index) {
@@ -627,8 +658,42 @@ function removeAttachment(index) {
 
 function clearAttachments() {
   state.attachments = [];
+  els.attachmentsScrollWrapper.style.display = 'none';
   els.attachmentsPreview.style.display = 'none';
   els.attachmentsPreview.innerHTML = '';
+}
+
+// ========== 图片预览灯箱 ==========
+function previewImage(url) {
+  // 创建/显示全屏预览
+  let overlay = document.getElementById('imageLightbox');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'imageLightbox';
+    overlay.className = 'lightbox-overlay';
+    overlay.innerHTML = '<img class="lightbox-img" src="" alt="预览">';
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeImagePreview();
+    });
+    document.body.appendChild(overlay);
+  }
+
+  overlay.querySelector('.lightbox-img').src = url;
+  overlay.style.display = 'flex';
+
+  // ESC 关闭
+  const onEsc = (e) => {
+    if (e.key === 'Escape') { closeImagePreview(); document.removeEventListener('keydown', onEsc); }
+  };
+  document.addEventListener('keydown', onEsc);
+}
+
+function closeImagePreview() {
+  const overlay = document.getElementById('imageLightbox');
+  if (overlay) {
+    overlay.style.display = 'none';
+    overlay.querySelector('.lightbox-img').src = '';
+  }
 }
 
 // ========== 辅助函数 ==========

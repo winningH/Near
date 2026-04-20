@@ -743,11 +743,72 @@ body {
 
 .attachments-preview {
   display: flex;
-  flex-wrap: wrap;
+  overflow-x: auto;
+  overflow-y: hidden;
   gap: 8px;
-  padding-bottom: 10px;
+  padding: 4px 32px 10px; /* 左右留出空间给箭头，避免遮挡 */
   border-bottom: 1px solid var(--border);
   margin-bottom: 10px;
+  scroll-behavior: smooth;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+
+.attachments-preview::-webkit-scrollbar { display: none; }
+
+/* 左右滚动箭头容器 */
+.attachments-scroll-wrapper {
+  position: relative;
+}
+
+.attachments-scroll-left,
+.attachments-scroll-right {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: rgba(30, 30, 58, 0.92);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 0.2s, background 0.15s;
+  pointer-events: none;
+  backdrop-filter: blur(6px);
+}
+
+.attachments-scroll-wrapper:hover .attachments-scroll-left,
+.attachments-scroll-wrapper:hover .attachments-scroll-right {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* 始终显示箭头（当内容溢出时由JS控制） */
+.attachments-scroll-wrapper.show-arrows .attachments-scroll-left,
+.attachments-scroll-wrapper.show-arrows .attachments-scroll-right {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.attachments-scroll-left { left: 3px; }
+.attachments-scroll-right { right: 3px; }
+
+.attachments-scroll-left:hover,
+.attachments-scroll-right:hover {
+  background: rgba(37, 37, 69, 0.95);
+  color: var(--text-primary);
+}
+
+.attachments-scroll-left svg,
+.attachments-scroll-right svg {
+  width: 14px;
+  height: 14px;
 }
 
 .preview-item {
@@ -760,6 +821,14 @@ body {
   border-radius: 8px;
   font-size: 12px;
   color: var(--text-secondary);
+  z-index: 2; /* 确保删除按钮在箭头之上 */
+}
+
+/* 图片预览项：无间距，仅显示缩略图 */
+.preview-item.image-preview {
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
 }
 
 .preview-item img {
@@ -767,6 +836,13 @@ body {
   height: 40px;
   border-radius: 4px;
   object-fit: cover;
+}
+
+/* 图片预览项中的图片更大 */
+.preview-item.image-preview img {
+  width: 64px;
+  height: 64px;
+  border-radius: 6px;
 }
 
 .preview-remove {
@@ -786,6 +862,7 @@ body {
   font-size: 12px;
   line-height: 1;
   transition: background 0.15s;
+  z-index: 15; /* 始终在箭头之上 */
 }
 
 .preview-remove:hover {
@@ -1012,6 +1089,27 @@ body {
   padding: 40px 20px;
   color: var(--text-muted);
   font-size: 13px;
+}
+
+/* ========== 图片预览灯箱 ========== */
+.lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+}
+
+.lightbox-img {
+  max-width: 90vw;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 }
 
 /* ========== 加载动画 ========== */
