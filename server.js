@@ -302,7 +302,7 @@ apiRouter.post('/chat', async (req, res) => {
 // 挂载 API 路由到子路径
 app.use(`${BASE_PATH}/api`, apiRouter);
 
-// 子路径访问时：/Near -> 302 到 /Near/（确保静态文件正常加载）
+// 子路径访问时：/Near -> 301 到 /Near/（确保静态文件正常加载）
 if (BASE_PATH) {
   app.get(BASE_PATH, (req, res) => {
     res.redirect(301, req.originalUrl + '/');
