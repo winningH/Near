@@ -1,6 +1,6 @@
 // ========== Near AI Assistant 前端逻辑 ==========
 
-const API_BASE = '/api';  // 相对路径，自动适配部署路径
+const API_BASE = 'api';   // 相对路径，自动适配部署路径
 
 // ========== 状态管理 ==========
 const state = {
