@@ -8,6 +8,7 @@ const state = {
   currentConversationId: null,
   attachments: [],
   isStreaming: false,
+  thinkMode: false,
   isNewChat: false,
   abortController: null,
   contextMenuConvId: null,
@@ -36,6 +37,7 @@ const els = {
   attachmentsScrollWrapper: $('#attachmentsScrollWrapper'),
   scrollLeftBtn: $('#scrollLeftBtn'),
   scrollRightBtn: $('#scrollRightBtn'),
+  thinkBtn: $('#thinkBtn'),
   contextMenu: $('#contextMenu'),
   renameModal: $('#renameModal'),
   renameInput: $('#renameInput'),
@@ -72,6 +74,13 @@ function bindEvents() {
   // 文件附件
   els.attachBtn.addEventListener('click', () => els.fileInput.click());
   els.fileInput.addEventListener('change', handleFileSelect);
+
+  // 深度思考模式切换
+  els.thinkBtn.addEventListener('click', () => {
+    state.thinkMode = !state.thinkMode;
+    els.thinkBtn.classList.toggle('active', state.thinkMode);
+    els.thinkBtn.title = state.thinkMode ? '关闭深度思考' : '开启深度思考';
+  });
 
   // 滚动箭头
   els.scrollLeftBtn.addEventListener('click', () => {
@@ -125,6 +134,14 @@ function bindEvents() {
   els.messageInput.addEventListener('input', () => {
     autoResizeTextarea();
     updateSendButton();
+  });
+
+  // 思考块折叠/展开（事件委托）
+  els.chatMessages.addEventListener('click', e => {
+    const header = e.target.closest('.thinking-header');
+    if (header) {
+      header.parentElement.classList.toggle('collapsed');
+    }
   });
 }
 
@@ -352,7 +369,7 @@ function createMessageHTML(msg) {
 
   const contentHTML = isUser
     ? escapeHtml(msg.content).replace(/\n/g, '<br>')
-    : renderMarkdown(msg.content);
+    : buildThinkingAndContent(msg.reasoning_content, msg.content);
   // 纯文件消息时，不渲染空内容气泡
   const contentDiv = msg.content ? `<div class="message-content">${contentHTML}</div>` : '';
 
@@ -419,10 +436,11 @@ async function handleSend() {
   const aiMsgEl = appendAIMessage();
 
   // 发送到服务器（流式）
-  await streamChat(state.currentConversationId, message, attachments, aiMsgEl);
+  const model = state.thinkMode ? 'LongCat-Flash-Thinking-2601' : null;
+  await streamChat(state.currentConversationId, message, attachments, aiMsgEl, model);
 }
 
-async function streamChat(conversationId, message, attachments, aiMsgEl) {
+async function streamChat(conversationId, message, attachments, aiMsgEl, model) {
   state.isStreaming = true;
   state.abortController = new AbortController();
   updateSendButton();
@@ -439,7 +457,8 @@ async function streamChat(conversationId, message, attachments, aiMsgEl) {
       body: JSON.stringify({
         conversationId,
         message,
-        attachments
+        attachments,
+        model
       })
     });
 
@@ -456,6 +475,7 @@ async function streamChat(conversationId, message, attachments, aiMsgEl) {
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let fullContent = '';
+    let fullReasoning = '';
     let buffer = '';
 
     while (true) {
@@ -475,9 +495,10 @@ async function streamChat(conversationId, message, attachments, aiMsgEl) {
         if (trimmed.startsWith('data: ')) {
           try {
             const data = JSON.parse(trimmed.slice(6));
-            fullContent = data.content;
-            // 实时渲染 Markdown
-            contentEl.innerHTML = renderMarkdown(fullContent);
+            if (data.content !== undefined) fullContent = data.content;
+            if (data.reasoning_content !== undefined) fullReasoning = data.reasoning_content;
+            // 实时渲染（思考内容 + 回答内容）
+            contentEl.innerHTML = buildThinkingAndContent(fullReasoning, fullContent);
             highlightCode(contentEl);
             scrollToBottom();
           } catch (e) {
@@ -488,7 +509,7 @@ async function streamChat(conversationId, message, attachments, aiMsgEl) {
     }
 
     // 流结束后的最终渲染
-    contentEl.innerHTML = renderMarkdown(fullContent);
+    contentEl.innerHTML = buildThinkingAndContent(fullReasoning, fullContent);
     highlightCode(contentEl);
   } catch (err) {
     if (err.name === 'AbortError') {
@@ -496,6 +517,7 @@ async function streamChat(conversationId, message, attachments, aiMsgEl) {
       const currentText = contentEl.textContent || '';
       if (currentText) {
         contentEl.innerHTML = renderMarkdown(currentText + '\n\n*[已中断]*');
+        highlightCode(contentEl);
       } else {
         contentEl.innerHTML = '<em style="color: var(--text-muted);">已中断生成</em>';
       }
@@ -880,4 +902,22 @@ function highlightCode(container) {
   container.querySelectorAll('pre code').forEach(block => {
     hljs.highlightElement(block);
   });
+}
+
+// 构建思考内容 + 正式回答的 HTML
+function buildThinkingAndContent(reasoning, content) {
+  let html = '';
+  if (reasoning && reasoning.trim()) {
+    html += `<div class="thinking-block">
+      <div class="thinking-header">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        <span>深度思考</span>
+      </div>
+      <div class="thinking-body">${renderMarkdown(reasoning)}</div>
+    </div>`;
+  }
+  if (content && content.trim()) {
+    html += `<div class="answer-content">${renderMarkdown(content)}</div>`;
+  }
+  return html;
 }

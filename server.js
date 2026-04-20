@@ -5,8 +5,16 @@ const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 const fs = require('fs');
 
+// 加载 .env 配置
+require('dotenv').config();
+
 const app = express();
 const PORT = 4000;
+
+// ========== LongCat AI 配置 ==========
+const LONGCAT_API_BASE = process.env.LONGCAT_API_BASE || 'https://api.longcat.chat/openai';
+const LONGCAT_API_KEY  = process.env.LONGCAT_API_KEY || '';
+const LONGCAT_MODEL    = process.env.LONGCAT_MODEL || 'LongCat-Flash-Chat';
 
 // 中间件
 app.use(cors());
@@ -112,9 +120,13 @@ app.post('/api/upload', upload.array('files', 5), (req, res) => {
   res.json(files);
 });
 
-// AI 对话接口（流式响应模拟）
-app.post('/api/chat', (req, res) => {
-  const { conversationId, message, attachments } = req.body;
+// AI 对话接口（流式调用 LongCat）
+app.post('/api/chat', async (req, res) => {
+  const { conversationId, message, attachments, model: reqModel } = req.body;
+
+  // 根据前端传入的 model 决定使用的模型
+  const useModel = reqModel || LONGCAT_MODEL;
+  console.log(`[Chat] 使用模型: ${useModel}`);
 
   // 如果会话不存在，自动创建
   let conv = conversations[conversationId];
@@ -147,116 +159,144 @@ app.post('/api/chat', (req, res) => {
     conv.title = (title || '新的对话').slice(0, 30) + ((title || '').length > 30 ? '...' : '');
   }
 
-  // 生成 AI 回复
-  const aiReply = generateAIResponse(message, attachments);
+  // 设置 SSE 响应头（禁用所有层级的缓冲）
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.setHeader('Access-Control-Allow-Origin', '*');
 
-  // 直接通过 socket 写入 SSE 流（绕过 Express 缓冲问题）
-  const socket = res.socket;
-  const headers = [
-    'HTTP/1.1 200 OK',
-    'Content-Type: text/event-stream',
-    'Cache-Control: no-cache',
-    'Connection: keep-alive',
-    'X-Accel-Buffering: no',
-    'Access-Control-Allow-Origin: *',
-    'X-Powered-By: Express',
-    '',
-    ''
-  ].join('\r\n');
-  socket.write(headers);
+  // 禁用 Express/Node.js 的响应缓冲，确保数据立即推送到客户端
+  res.flushHeaders();
 
   const aiMsgId = uuidv4();
   let fullContent = '';
-  let index = 0;
-  const chars = aiReply.split('');
+  let fullReasoning = '';
 
-  // 使用 setInterval 逐字发送
-  const intervalId = setInterval(() => {
-    if (index < chars.length) {
-      const chunkSize = Math.min(Math.floor(Math.random() * 3) + 1, chars.length - index);
-      const chunk = chars.slice(index, index + chunkSize).join('');
-      fullContent += chunk;
-      index += chunkSize;
-
-      socket.write(
-        `data: ${JSON.stringify({ id: aiMsgId, content: fullContent, done: false })}\n\n`
-      );
-    } else {
-      clearInterval(intervalId);
-
-      // 保存 AI 消息
-      const aiMsg = {
-        id: aiMsgId,
-        role: 'assistant',
-        content: fullContent,
-        timestamp: new Date().toISOString()
-      };
-      conv.messages.push(aiMsg);
-      saveConversations();
-
-      socket.write(
-        `data: ${JSON.stringify({ id: aiMsgId, content: fullContent, done: true })}\n\n`
-      );
-      socket.end();
+  // 强制刷新缓冲区到 socket
+  function flushResponse() {
+    if (typeof res.flush === 'function') {
+      res.flush();
+    } else if (res.socket) {
+      // 备选方案：通过底层 socket 刷新
+      res.socket.uncork?.();
     }
-  }, 30);
+  }
 
-  // 处理客户端中断
-  socket.on('close', () => {
-    clearInterval(intervalId);
-  });
+  try {
+    // 构建发给 LongCat 的消息历史（最近 20 轮，控制上下文长度）
+    const recentMessages = conv.messages
+      .filter(m => m.role === 'user' || m.role === 'assistant')
+      .slice(-40)
+      .map(m => ({
+        role: m.role === 'assistant' ? 'assistant' : 'user',
+        content: m.content
+      }));
+
+    // 如果有附件，将附件信息拼入当前用户消息
+    let userContent = message;
+    if (attachments && attachments.length > 0) {
+      const attInfo = attachments.map(a => `[附件: ${a.name}]`).join(' ');
+      userContent += '\n\n' + attInfo;
+    }
+    // 更新最后一条 user 消息内容为带附件的版本
+    if (recentMessages.length > 0 && recentMessages[recentMessages.length - 1].role === 'user') {
+      recentMessages[recentMessages.length - 1].content = userContent;
+    }
+
+    // 调用 LongCat API（流式）
+    const apiRes = await fetch(`${LONGCAT_API_BASE}/v1/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${LONGCAT_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: useModel,
+        messages: recentMessages,
+        max_tokens: 2048,
+        temperature: 0.7,
+        stream: true
+      })
+    });
+
+    if (!apiRes.ok) {
+      const errText = await apiRes.text();
+      console.error('LongCat API 错误:', apiRes.status, errText);
+      throw new Error(`AI 服务返回错误 (${apiRes.status})`);
+    }
+
+    // 读取 SSE 流并转发给客户端
+    const reader = apiRes.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith('data:')) continue;
+        const data = trimmed.slice(5).trim();
+        if (data === '[DONE]') continue;
+
+        try {
+          const parsed = JSON.parse(data);
+          const delta = parsed.choices?.[0]?.delta;
+          const content = delta?.content || '';
+          const reasoning = delta?.reasoning_content || '';
+          if (content) {
+            fullContent += content;
+          }
+          if (reasoning) {
+            fullReasoning += reasoning;
+          }
+          if (content || reasoning) {
+            res.write(`data: ${JSON.stringify({ id: aiMsgId, content: fullContent, reasoning_content: fullReasoning, done: false })}\n\n`);
+            flushResponse();
+          }
+        } catch (e) {
+          // 忽略解析错误
+        }
+      }
+    }
+
+    // 流结束，保存 AI 消息
+    const aiMsg = {
+      id: aiMsgId,
+      role: 'assistant',
+      content: fullContent,
+      reasoning_content: fullReasoning || undefined,
+      timestamp: new Date().toISOString()
+    };
+    conv.messages.push(aiMsg);
+    saveConversations();
+
+    res.write(`data: ${JSON.stringify({ id: aiMsgId, content: fullContent, reasoning_content: fullReasoning || undefined, done: true })}\n\n`);
+    res.end();
+
+  } catch (err) {
+    console.error('LongCat 调用失败:', err.message);
+    const errorMsg = `请求失败: ${err.message}`;
+    res.write(`data: ${JSON.stringify({ id: aiMsgId, content: errorMsg, done: true, error: true })}\n\n`);
+    res.end();
+  }
 });
-
-// ========== AI 回复生成（模拟） ==========
-
-function generateAIResponse(message, attachments) {
-  const lowerMsg = message.toLowerCase();
-
-  // 附件处理
-  if (attachments && attachments.length > 0) {
-    const fileNames = attachments.map(a => a.name).join('、');
-    return `我已收到您上传的文件：${fileNames}。\n\n感谢您的分享！目前我是模拟 AI 助手，暂时无法深入分析文件内容。在接入真实的 AI 模型后，我将能够为您：\n\n1. **分析文档内容** - 提取关键信息和摘要\n2. **处理图片** - 识别图片中的内容和文字\n3. **解析数据文件** - 帮您理解和分析数据\n\n请问您希望我对这些文件做什么？`;
-  }
-
-  // 基于关键词的智能回复
-  if (lowerMsg.includes('你好') || lowerMsg.includes('hello') || lowerMsg.includes('hi')) {
-    // return '你好！👋 我是 **Near**，您的 AI 助手。\n\n我可以帮助您：\n- 💬 回答各种问题\n- 📝 撰写和编辑文本\n- 💡 提供创意和建议\n- 🔍 分析和总结信息\n\n有什么我可以帮您的吗？';
-    return '你好！我是AI 助手';
-  }
-
-  if (lowerMsg.includes('你是谁') || lowerMsg.includes('介绍')) {
-    return '我是 **Near**，一个 AI 智能助手。\n\n### 关于我\n- 🤖 我是一个基于大语言模型的 AI 助手\n- 🎯 我的目标是帮助您解决问题、提高效率\n- 💡 我可以处理文本、代码、创意等多种任务\n- 🔄 我会持续学习和改进\n\n目前我处于演示模式，回复内容为预设模拟。接入真实 AI 模型后，我将能够提供更加智能和精准的服务。';
-  }
-
-  if (lowerMsg.includes('代码') || lowerMsg.includes('编程') || lowerMsg.includes('code')) {
-    return '当然可以帮您处理编程相关的问题！💻\n\n我支持多种编程语言，包括但不限于：\n\n| 语言 | 擅长领域 |\n|------|----------|\n| JavaScript/TypeScript | 前端、Node.js |\n| Python | 数据科学、AI |\n| Java | 后端服务 |\n| Go | 高性能服务 |\n| Rust | 系统编程 |\n\n请告诉我您具体需要什么帮助，比如：\n- 编写特定功能的代码\n- 调试和修复 bug\n- 代码优化建议\n- 算法实现\n\n我会尽力为您提供高质量的代码和解释！';
-  }
-
-  if (
-    lowerMsg.includes('写') &&
-    (lowerMsg.includes('文章') || lowerMsg.includes('文案') || lowerMsg.includes('邮件'))
-  ) {
-    return '好的，我可以帮您撰写各类文本内容！✍️\n\n请告诉我以下信息，以便我更好地为您服务：\n\n1. **文本类型** - 文章、文案、邮件、报告等\n2. **主题内容** - 您想写什么\n3. **风格要求** - 正式、轻松、专业等\n4. **字数要求** - 大概的篇幅\n5. **目标受众** - 面向谁\n\n有了这些信息，我就能为您生成高质量的文本内容了！';
-  }
-
-  if (lowerMsg.includes('翻译')) {
-    return '我可以帮您进行多语言翻译！🌍\n\n支持的语言包括：\n- 🇨🇳 中文 ↔ 🇺🇸 英语\n- 🇨🇳 中文 ↔ 🇯🇵 日语\n- 🇨🇳 中文 ↔ 🇰🇷 韩语\n- 🇨🇳 中文 ↔ 🇫🇷 法语\n- 🇨🇳 中文 ↔ 🇩🇪 德语\n- 以及更多语言...\n\n请直接发送您需要翻译的内容，并告诉我目标语言即可！';
-  }
-
-  // 默认回复
-  const responses = [
-    `感谢您的提问！这是一个很好的问题。\n\n关于"${message.slice(0, 20)}"，我有以下思考：\n\n1. **理解需求** - 我需要更全面地了解您的具体需求\n2. **提供方案** - 基于我的知识，我可以提供多个角度的分析\n3. **持续互动** - 我们可以进一步深入讨论\n\n目前我是模拟 AI 助手，接入真实模型后将提供更精准的回答。您还有什么想了解的吗？`,
-
-    `您提出了一个有趣的话题！🤔\n\n关于这个问题，我建议我们可以从以下几个方面来思考：\n\n### 分析\n- 首先需要明确问题的核心要点\n- 其次考虑不同角度的可能方案\n- 最后评估各方案的优劣\n\n### 建议\n我建议您可以从最基础的部分开始，逐步深入。如果有具体的问题或困惑，随时告诉我，我会尽力帮助您！\n\n> 💡 提示：更具体的问题通常能获得更有针对性的回答。`,
-
-    `好的，让我来帮您分析一下这个问题。📚\n\n**核心要点：**\n您提到的内容涉及多个层面，让我逐一分析：\n\n1. 从**实用性**角度来看，这是值得关注的\n2. 从**创新性**角度来看，也有很大的探索空间\n3. 从**可行性**角度来看，需要考虑具体条件\n\n如果您能提供更多细节，我可以给出更有针对性的建议。期待您的进一步说明！`
-  ];
-
-  return responses[Math.floor(Math.random() * responses.length)];
-}
 
 // 启动服务器
 app.listen(PORT, () => {
   console.log(`🚀 Near AI Assistant 服务已启动`);
   console.log(`   本地访问: http://localhost:${PORT}`);
+  console.log(`   AI 模型:  ${LONGCAT_MODEL} (${LONGCAT_API_BASE})`);
+  if (!LONGCAT_API_KEY) {
+    console.warn('   ⚠️  未设置 LONGCAT_API_KEY，AI 调用将失败');
+    console.warn('      请设置环境变量或在 .env 中配置 API Key');
+  } else {
+    console.log('   ✓ API Key 已配置');
+  }
 });

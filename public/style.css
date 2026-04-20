@@ -900,6 +900,47 @@ body {
   height: 20px;
 }
 
+/* 深度思考按钮（底部标签样式） */
+.btn-think {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.2s;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.btn-think:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border);
+}
+
+.btn-think.active {
+  background: rgba(108, 99, 255, 0.08);
+  color: var(--accent);
+  border-color: rgba(108, 99, 255, 0.35);
+}
+
+.btn-think.active:hover {
+  background: rgba(108, 99, 255, 0.14);
+}
+
+.input-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 6px;
+  padding: 0 4px;
+}
+
 .input-wrapper {
   flex: 1;
 }
@@ -1089,6 +1130,84 @@ body {
   padding: 40px 20px;
   color: var(--text-muted);
   font-size: 13px;
+}
+
+/* ========== 深度思考块 ========== */
+.thinking-block {
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(108, 99, 255, 0.04);
+}
+
+.thinking-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  background: rgba(108, 99, 255, 0.08);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+
+.thinking-header:hover {
+  background: rgba(108, 99, 255, 0.14);
+}
+
+.thinking-header svg {
+  flex-shrink: 0;
+}
+
+.thinking-body {
+  padding: 10px 14px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+
+.thinking-body p,
+.thinking-body ul,
+.thinking-body ol {
+  margin-bottom: 6px;
+}
+
+.thinking-body strong {
+  color: var(--text-secondary);
+}
+
+/* 思考内容折叠状态 */
+.thinking-block.collapsed .thinking-body {
+  display: none;
+}
+
+.thinking-block.collapsed .thinking-header::after {
+  content: '展开';
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 400;
+  opacity: 0.7;
+}
+
+.thinking-header::after {
+  content: '收起';
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 400;
+  opacity: 0.7;
+}
+
+.thinking-block.collapsed .thinking-header::after {
+  content: '展开';
+}
+
+/* 正式回答区域 */
+.answer-content {
+  /* 回答内容使用默认样式即可 */
 }
 
 /* ========== 图片预览灯箱 ========== */
