@@ -529,7 +529,7 @@ body {
 .message-content h2 { font-size: 17px; }
 .message-content h3 { font-size: 15px; }
 
-.message.content p {
+.message-content p {
   margin-bottom: 8px;
 }
 
@@ -1187,10 +1187,6 @@ body {
 
 .thinking-block.collapsed .thinking-header::after {
   content: '展开';
-  margin-left: auto;
-  font-size: 11px;
-  font-weight: 400;
-  opacity: 0.7;
 }
 
 .thinking-header::after {
@@ -1199,15 +1195,6 @@ body {
   font-size: 11px;
   font-weight: 400;
   opacity: 0.7;
-}
-
-.thinking-block.collapsed .thinking-header::after {
-  content: '展开';
-}
-
-/* 正式回答区域 */
-.answer-content {
-  /* 回答内容使用默认样式即可 */
 }
 
 /* ========== 图片预览灯箱 ========== */
