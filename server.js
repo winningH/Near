@@ -225,7 +225,7 @@ apiRouter.post('/chat', async (req, res) => {
       body: JSON.stringify({
         model: useModel,
         messages: recentMessages,
-        max_tokens: 2048,
+        // 不设 max_tokens 限制，由模型自行决定输出长度
         temperature: 0.7,
         stream: true
       })
