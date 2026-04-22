@@ -1,5 +1,36 @@
+# Dependencies
 node_modules/
+
+# Next.js
+.next/
+out/
+
+# Database
 data/
+*.db
+*.db-journal
+prisma/*.db
+prisma/*.db-journal
+
+# Uploads
 uploads/
-*.log
+public/uploads/
+
+# Environment
 .env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
