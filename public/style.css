@@ -1217,25 +1217,3 @@ body {
   border-radius: 8px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 }
-
-/* ========== 加载动画 ========== */
-.message-content .loading-dots {
-  display: inline-flex;
-  gap: 4px;
-}
-
-.message-content .loading-dots span {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent);
-  animation: loadDot 1.4s infinite ease-in-out both;
-}
-
-.message-content .loading-dots span:nth-child(1) { animation-delay: -0.32s; }
-.message-content .loading-dots span:nth-child(2) { animation-delay: -0.16s; }
-
-@keyframes loadDot {
-  0%, 80%, 100% { transform: scale(0); }
-  40% { transform: scale(1); }
-}
