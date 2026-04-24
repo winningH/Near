@@ -20,6 +20,7 @@ export default function Home() {
   const [streamingContent, setStreamingContent] = useState('');
   const [streamingReasoning, setStreamingReasoning] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -111,6 +112,9 @@ export default function Home() {
       setCurrentId(conversationId);
     }
 
+    // 清除之前的错误
+    setError(null);
+
     // 添加用户消息到界面
     const userMessage: Message = {
       id: generateId(),
@@ -142,7 +146,8 @@ export default function Home() {
       });
 
       if (!res.ok) {
-        throw new Error('发送消息失败');
+        const errorText = await res.text();
+        throw new Error(`发送消息失败: ${res.status} ${errorText}`);
       }
 
       const reader = res.body?.getReader();
@@ -190,6 +195,7 @@ export default function Home() {
         console.log('用户中断生成');
       } else {
         console.error('聊天请求失败:', err);
+        setError(err.message || '请求失败，请检查网络连接或 API 配置');
       }
     } finally {
       setIsStreaming(false);
@@ -247,6 +253,7 @@ export default function Home() {
             isStreaming={isStreaming}
             streamingContent={streamingContent}
             streamingReasoning={streamingReasoning}
+            error={error}
           />
         )}
 

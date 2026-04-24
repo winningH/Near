@@ -11,6 +11,7 @@ interface MessageListProps {
   isStreaming: boolean;
   streamingContent?: string;
   streamingReasoning?: string;
+  error?: string | null;
 }
 
 function AttachmentItem({ att, isUser }: { att: Attachment; isUser: boolean }) {
@@ -45,8 +46,8 @@ function AttachmentItem({ att, isUser }: { att: Attachment; isUser: boolean }) {
 
   return (
     <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs
-      ${isUser 
-        ? 'bg-white/15 text-white/85' 
+      ${isUser
+        ? 'bg-white/15 text-white/85'
         : 'dark:bg-[#252545] bg-slate-100 dark:text-[#a0a0c0] text-slate-600'
       }`}
     >
@@ -78,8 +79,8 @@ function MessageItem({ message }: { message: Message }) {
       <div className={`max-w-3xl mx-auto px-8 flex gap-2.5 ${isUser ? 'flex-row-reverse' : ''}`}>
         {/* 头像 */}
         <div className={`w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-semibold text-white
-          ${isUser 
-            ? 'bg-gradient-to-br dark:from-[#6c63ff] dark:to-[#a78bfa] from-indigo-500 to-purple-500' 
+          ${isUser
+            ? 'bg-gradient-to-br dark:from-[#6c63ff] dark:to-[#a78bfa] from-indigo-500 to-purple-500'
             : 'bg-gradient-to-br dark:from-emerald-500 dark:to-emerald-400 from-emerald-500 to-teal-400'
           }`}
         >
@@ -126,7 +127,7 @@ function MessageItem({ message }: { message: Message }) {
   );
 }
 
-export function MessageList({ messages, isStreaming, streamingContent, streamingReasoning }: MessageListProps) {
+export function MessageList({ messages, isStreaming, streamingContent, streamingReasoning, error }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const streamingRef = useRef<HTMLDivElement>(null);
 
@@ -164,8 +165,8 @@ export function MessageList({ messages, isStreaming, streamingContent, streaming
               <div className="text-[11px] mb-1 pl-0.5 dark:text-[#6a6a8e] text-slate-400">Near</div>
               <div
                 ref={streamingRef}
-                className="message-content inline-block px-4 py-2.5 rounded-[18px_18px_18px_2px] 
-                  dark:bg-[#16213e] bg-white dark:border-[#2a2a50] border-slate-200 border 
+                className="message-content inline-block px-4 py-2.5 rounded-[18px_18px_18px_2px]
+                  dark:bg-[#16213e] bg-white dark:border-[#2a2a50] border-slate-200 border
                   text-[14.5px] leading-relaxed dark:text-[#e8e8f0] text-slate-700"
                 dangerouslySetInnerHTML={{
                   __html: streamingContent || streamingReasoning
@@ -173,6 +174,25 @@ export function MessageList({ messages, isStreaming, streamingContent, streaming
                     : '<div class="typing-indicator dark:bg-transparent bg-transparent"><span class="dark:bg-[#6a6a8e] bg-slate-400"></span><span class="dark:bg-[#6a6a8e] bg-slate-400"></span><span class="dark:bg-[#6a6a8e] bg-slate-400"></span></div>'
                 }}
               />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 错误消息 */}
+      {error && (
+        <div className="py-3 animate-fade-in">
+          <div className="max-w-3xl mx-auto px-8 flex gap-2.5">
+            <div className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-semibold text-white bg-red-500">
+              !
+            </div>
+            <div className="max-w-[calc(100%-56px)] min-w-0">
+              <div className="text-[11px] mb-1 pl-0.5 dark:text-[#6a6a8e] text-slate-400">错误</div>
+              <div className="message-content inline-block px-4 py-2.5 rounded-[18px_18px_18px_2px]
+                bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800
+                text-[14.5px] leading-relaxed text-red-700 dark:text-red-300">
+                {error}
+              </div>
             </div>
           </div>
         </div>

@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
         });
 
         // 构建发送给 AI 的消息
-        const messagesForAI = recentMessages.map(m => {
+        const messagesForAI = recentMessages.map((m: { role: string; content: string; attachments?: { name: string }[] }) => {
           let content = m.content;
           if (m.attachments && m.attachments.length > 0) {
             const attInfo = m.attachments.map(a => `[附件: ${a.name}]`).join(' ');
@@ -121,7 +121,12 @@ export async function POST(request: NextRequest) {
         if (!apiRes.ok) {
           const errText = await apiRes.text();
           console.error('LongCat API 错误:', apiRes.status, errText);
-          throw new Error(`AI 服务返回错误 (${apiRes.status})`);
+          console.error('请求配置:', {
+            url: `${LONGCAT_API_BASE}/v1/chat/completions`,
+            model: useModel,
+            apiKey: LONGCAT_API_KEY ? '已设置 (长度: ' + LONGCAT_API_KEY.length + ')' : '未设置!',
+          });
+          throw new Error(`AI 服务返回错误 (${apiRes.status}): ${errText}`);
         }
 
         const reader = apiRes.body?.getReader();
