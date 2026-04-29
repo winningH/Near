@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { Attachment } from '@/types';
 import { formatFileSize } from '@/lib/utils';
 
@@ -16,9 +16,25 @@ export function ChatInput({ onSend, onStop, isStreaming, thinkMode, onToggleThin
   const [message, setMessage] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [showScrollButtons, setShowScrollButtons] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const attachmentsRef = useRef<HTMLDivElement>(null);
+  const inputContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = attachmentsRef.current;
+    if (!el) return;
+    const checkOverflow = () => setShowScrollButtons(el.scrollWidth > el.clientWidth + 1);
+    checkOverflow();
+    const observer = new ResizeObserver(checkOverflow);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [attachments]);
+
+  const focusTextarea = useCallback(() => {
+    textareaRef.current?.focus();
+  }, []);
 
   const handleSend = useCallback(() => {
     if (isStreaming) {
@@ -87,22 +103,22 @@ export function ChatInput({ onSend, onStop, isStreaming, thinkMode, onToggleThin
 
   const handlePaste = useCallback(async (e: React.ClipboardEvent) => {
     const items = Array.from(e.clipboardData?.items || []);
-    const imageFiles: File[] = [];
+    const files: File[] = [];
 
     for (const item of items) {
-      if (item.type.startsWith('image/')) {
+      if (item.kind === 'file') {
         const file = item.getAsFile();
-        if (file) imageFiles.push(file);
+        if (file && file.size > 0) files.push(file);
       }
     }
 
-    if (imageFiles.length === 0) return;
+    if (files.length === 0) return;
 
     e.preventDefault();
     setIsUploading(true);
 
     const formData = new FormData();
-    imageFiles.forEach(file => {
+    files.forEach(file => {
       formData.append('files', file);
     });
 
@@ -119,8 +135,8 @@ export function ChatInput({ onSend, onStop, isStreaming, thinkMode, onToggleThin
       const uploaded = await res.json();
       setAttachments(prev => [...prev, ...uploaded]);
     } catch (err) {
-      console.error('粘贴图片上传失败:', err);
-      alert('粘贴图片失败');
+      console.error('粘贴文件上传失败:', err);
+      alert('粘贴文件失败');
     } finally {
       setIsUploading(false);
     }
@@ -145,22 +161,24 @@ export function ChatInput({ onSend, onStop, isStreaming, thinkMode, onToggleThin
   return (
     <div className="px-8 pb-6 dark:bg-gradient-to-b dark:from-transparent dark:to-[#1a1a2e]/30 bg-gradient-to-b from-transparent to-white/50">
       <div className="max-w-3xl mx-auto">
-        <div className="dark:bg-[#1e1e3a] bg-white dark:border-[#2a2a50] border-slate-200 border rounded-2xl p-3 
-          transition-all focus-within:border-indigo-500 focus-within:ring-2 
-          dark:focus-within:ring-[rgba(108,99,255,0.3)] focus-within:ring-indigo-500/20">
-          
+        <div
+          ref={inputContainerRef}
+          className="dark:bg-[#1e1e3a] bg-white dark:border-[#2a2a50] border-slate-200 border rounded-2xl p-3
+            transition-all focus-within:border-indigo-500 focus-within:ring-2
+            dark:focus-within:ring-[rgba(108,99,255,0.3)] focus-within:ring-indigo-500/20"
+          onClick={focusTextarea}
+        >
+
           {/* 附件预览 */}
           {attachments.length > 0 && (
             <div className="relative mb-2.5">
-              {/* 左滚动按钮 */}
-              {attachments.length > 3 && (
+              {showScrollButtons && (
                 <button
                   onClick={() => scrollAttachments('left')}
                   className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-6 h-7 rounded-md
                     dark:bg-[#1e1e3a]/95 dark:border-[#2a2a50] dark:border dark:text-[#a0a0c0]
                     bg-white border-slate-200 border text-slate-500
-                    flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                  style={{ opacity: attachments.length > 3 ? 1 : undefined }}
+                    flex items-center justify-center"
                 >
                   <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M15 18l-6-6 6-6" />
@@ -217,14 +235,13 @@ export function ChatInput({ onSend, onStop, isStreaming, thinkMode, onToggleThin
               </div>
 
               {/* 右滚动按钮 */}
-              {attachments.length > 3 && (
+              {showScrollButtons && (
                 <button
                   onClick={() => scrollAttachments('right')}
                   className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-6 h-7 rounded-md
                     dark:bg-[#1e1e3a]/95 dark:border-[#2a2a50] dark:border dark:text-[#a0a0c0]
                     bg-white border-slate-200 border text-slate-500
-                    flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                  style={{ opacity: attachments.length > 3 ? 1 : undefined }}
+                    flex items-center justify-center"
                 >
                   <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M9 18l6-6-6-6" />
