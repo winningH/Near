@@ -155,7 +155,8 @@
             conversationId,
             content,
             attachments,
-            this.thinkMode ? THINKING_MODEL : undefined
+            this.thinkMode ? THINKING_MODEL : undefined,
+            this.abortController.signal
           );
 
           if (!res.ok) {
