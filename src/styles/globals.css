@@ -2,7 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* 基础样式 */
 * {
   margin: 0;
   padding: 0;
@@ -19,7 +18,6 @@ body {
   overflow: hidden;
 }
 
-/* 滚动条样式 */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -33,7 +31,6 @@ body {
   border-radius: 3px;
 }
 
-/* 暗黑模式滚动条 */
 .dark ::-webkit-scrollbar-thumb {
   background: #3a3a5e;
 }
@@ -42,7 +39,6 @@ body {
   background: #4a4a6e;
 }
 
-/* 明亮模式滚动条 */
 .light ::-webkit-scrollbar-thumb,
 html:not(.dark) ::-webkit-scrollbar-thumb {
   background: #cbd5e1;
@@ -53,12 +49,10 @@ html:not(.dark) ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
 
-/* 代码高亮样式 */
 .hljs {
   background: transparent !important;
 }
 
-/* Markdown 内容样式 */
 .message-content h1,
 .message-content h2,
 .message-content h3 {
@@ -144,99 +138,37 @@ html:not(.dark) ::-webkit-scrollbar-thumb:hover {
   margin: 12px 0;
 }
 
-/* 暗黑模式 Markdown */
-.dark .message-content strong {
-  color: #c0c0ff;
-}
+.dark .message-content strong { color: #c0c0ff; }
+.dark .message-content em { color: #a0a0c0; }
+.dark .message-content blockquote { border-color: #6c63ff; background: rgba(108, 99, 255, 0.06); color: #a0a0c0; }
+.dark .message-content code { background: #0d1117; color: #e0b0ff; }
+.dark .message-content pre { background: #0d1117; }
+.dark .message-content th, .dark .message-content td { border: 1px solid #2a2a50; }
+.dark .message-content th { background: #252545; }
+.dark .message-content a { color: #6c63ff; }
+.dark .message-content hr { border-top: 1px solid #2a2a50; }
 
-.dark .message-content em {
-  color: #a0a0c0;
-}
-
-.dark .message-content blockquote {
-  border-color: #6c63ff;
-  background: rgba(108, 99, 255, 0.06);
-  color: #a0a0c0;
-}
-
-.dark .message-content code {
-  background: #0d1117;
-  color: #e0b0ff;
-}
-
-.dark .message-content pre {
-  background: #0d1117;
-}
-
-.dark .message-content th,
-.dark .message-content td {
-  border: 1px solid #2a2a50;
-}
-
-.dark .message-content th {
-  background: #252545;
-}
-
-.dark .message-content a {
-  color: #6c63ff;
-}
-
-.dark .message-content hr {
-  border-top: 1px solid #2a2a50;
-}
-
-/* 明亮模式 Markdown */
 .light .message-content strong,
-html:not(.dark) .message-content strong {
-  color: #4338ca;
-}
-
+html:not(.dark) .message-content strong { color: #4338ca; }
 .light .message-content em,
-html:not(.dark) .message-content em {
-  color: #475569;
-}
-
+html:not(.dark) .message-content em { color: #475569; }
 .light .message-content blockquote,
-html:not(.dark) .message-content blockquote {
-  border-color: #6366f1;
-  background: rgba(99, 102, 241, 0.06);
-  color: #475569;
-}
-
+html:not(.dark) .message-content blockquote { border-color: #6366f1; background: rgba(99, 102, 241, 0.06); color: #475569; }
 .light .message-content code,
-html:not(.dark) .message-content code {
-  background: #f1f5f9;
-  color: #7c3aed;
-}
-
+html:not(.dark) .message-content code { background: #f1f5f9; color: #7c3aed; }
 .light .message-content pre,
-html:not(.dark) .message-content pre {
-  background: #f1f5f9;
-}
-
+html:not(.dark) .message-content pre { background: #f1f5f9; }
 .light .message-content th,
 .light .message-content td,
 html:not(.dark) .message-content th,
-html:not(.dark) .message-content td {
-  border: 1px solid #e2e8f0;
-}
-
+html:not(.dark) .message-content td { border: 1px solid #e2e8f0; }
 .light .message-content th,
-html:not(.dark) .message-content th {
-  background: #e2e8f0;
-}
-
+html:not(.dark) .message-content th { background: #e2e8f0; }
 .light .message-content a,
-html:not(.dark) .message-content a {
-  color: #6366f1;
-}
-
+html:not(.dark) .message-content a { color: #6366f1; }
 .light .message-content hr,
-html:not(.dark) .message-content hr {
-  border-top: 1px solid #e2e8f0;
-}
+html:not(.dark) .message-content hr { border-top: 1px solid #e2e8f0; }
 
-/* 思考块样式 */
 .thinking-block {
   margin-bottom: 12px;
   border: 1px solid;
@@ -256,13 +188,8 @@ html:not(.dark) .message-content hr {
   transition: background 0.15s;
 }
 
-.thinking-header:hover {
-  opacity: 0.9;
-}
-
-.thinking-header svg {
-  flex-shrink: 0;
-}
+.thinking-header:hover { opacity: 0.9; }
+.thinking-header svg { flex-shrink: 0; }
 
 .thinking-body {
   padding: 10px 14px;
@@ -272,79 +199,29 @@ html:not(.dark) .message-content hr {
 
 .thinking-body p,
 .thinking-body ul,
-.thinking-body ol {
-  margin-bottom: 6px;
-}
+.thinking-body ol { margin-bottom: 6px; }
 
-/* 思考块折叠状态 */
-.thinking-block.collapsed .thinking-body {
-  display: none;
-}
+.thinking-block.collapsed .thinking-body { display: none; }
+.thinking-block.collapsed .thinking-header::after { content: '展开'; }
+.thinking-header::after { content: '收起'; margin-left: auto; font-size: 11px; font-weight: 400; opacity: 0.7; }
 
-.thinking-block.collapsed .thinking-header::after {
-  content: '展开';
-}
+.dark .thinking-block { border-color: #2a2a50; background: rgba(108, 99, 255, 0.04); }
+.dark .thinking-header { color: #6c63ff; background: rgba(108, 99, 255, 0.08); }
+.dark .thinking-header:hover { background: rgba(108, 99, 255, 0.14); }
+.dark .thinking-body { color: #a0a0c0; }
+.dark .thinking-body strong { color: #a0a0c0; }
 
-.thinking-header::after {
-  content: '收起';
-  margin-left: auto;
-  font-size: 11px;
-  font-weight: 400;
-  opacity: 0.7;
-}
-
-/* 暗黑模式思考块 */
-.dark .thinking-block {
-  border-color: #2a2a50;
-  background: rgba(108, 99, 255, 0.04);
-}
-
-.dark .thinking-header {
-  color: #6c63ff;
-  background: rgba(108, 99, 255, 0.08);
-}
-
-.dark .thinking-header:hover {
-  background: rgba(108, 99, 255, 0.14);
-}
-
-.dark .thinking-body {
-  color: #a0a0c0;
-}
-
-.dark .thinking-body strong {
-  color: #a0a0c0;
-}
-
-/* 明亮模式思考块 */
 .light .thinking-block,
-html:not(.dark) .thinking-block {
-  border-color: #e2e8f0;
-  background: rgba(99, 102, 241, 0.04);
-}
-
+html:not(.dark) .thinking-block { border-color: #e2e8f0; background: rgba(99, 102, 241, 0.04); }
 .light .thinking-header,
-html:not(.dark) .thinking-header {
-  color: #6366f1;
-  background: rgba(99, 102, 241, 0.08);
-}
-
+html:not(.dark) .thinking-header { color: #6366f1; background: rgba(99, 102, 241, 0.08); }
 .light .thinking-header:hover,
-html:not(.dark) .thinking-header:hover {
-  background: rgba(99, 102, 241, 0.14);
-}
-
+html:not(.dark) .thinking-header:hover { background: rgba(99, 102, 241, 0.14); }
 .light .thinking-body,
-html:not(.dark) .thinking-body {
-  color: #475569;
-}
-
+html:not(.dark) .thinking-body { color: #475569; }
 .light .thinking-body strong,
-html:not(.dark) .thinking-body strong {
-  color: #475569;
-}
+html:not(.dark) .thinking-body strong { color: #475569; }
 
-/* 打字指示器 */
 .typing-indicator {
   display: inline-flex;
   gap: 5px;
@@ -366,11 +243,10 @@ html:not(.dark) .thinking-body strong {
   40% { opacity: 1; transform: scale(1); }
 }
 
-/* 图片预览灯箱 */
 .lightbox-overlay {
   position: fixed;
   inset: 0;
-  display: none;
+  display: flex;
   align-items: center;
   justify-content: center;
   z-index: 2000;
@@ -378,14 +254,9 @@ html:not(.dark) .thinking-body strong {
   backdrop-filter: blur(8px);
 }
 
-.dark .lightbox-overlay {
-  background: rgba(0, 0, 0, 0.85);
-}
-
+.dark .lightbox-overlay { background: rgba(0, 0, 0, 0.85); }
 .light .lightbox-overlay,
-html:not(.dark) .lightbox-overlay {
-  background: rgba(0, 0, 0, 0.75);
-}
+html:not(.dark) .lightbox-overlay { background: rgba(0, 0, 0, 0.75); }
 
 .lightbox-img {
   max-width: 90vw;
@@ -395,24 +266,19 @@ html:not(.dark) .lightbox-overlay {
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 }
 
-/* 动画 */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-.animate-fade-in {
-  animation: fadeIn 0.3s ease;
-}
+.animate-fade-in { animation: fadeIn 0.3s ease; }
 
-/* 输入框自动调整 */
 textarea {
   field-sizing: content;
   min-height: 24px;
   max-height: 150px;
 }
 
-/* 隐藏滚动条但保持功能 */
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
