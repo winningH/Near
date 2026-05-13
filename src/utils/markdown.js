@@ -1,77 +1,22 @@
 import { marked } from 'marked'
 import hljs from 'highlight.js'
 
-const SAFE_TAGS = new Set([
-  'p', 'br', 'b', 'i', 'em', 'strong', 'u', 's', 'del',
-  'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-  'ul', 'ol', 'li',
-  'blockquote',
-  'pre', 'code',
-  'a', 'img',
-  'table', 'thead', 'tbody', 'tr', 'th', 'td',
-  'hr', 'div', 'span', 'sup', 'sub'
-])
-
-const SAFE_ATTRS = new Set(['href', 'src', 'alt', 'title', 'class', 'id'])
-
-export function sanitizeHTML(html) {
-  const tmp = document.createElement('div')
-  tmp.innerHTML = html
-
-  function clean(node) {
-    const children = Array.from(node.childNodes)
-    for (const child of children) {
-      if (child.nodeType === Node.ELEMENT_NODE) {
-        const element = child
-
-        if (!SAFE_TAGS.has(element.tagName.toLowerCase())) {
-          const frag = document.createDocumentFragment()
-          while (element.firstChild) {
-            frag.appendChild(element.firstChild)
-          }
-          node.replaceChild(frag, element)
-          continue
-        }
-
-        Array.from(element.attributes).forEach(attr => {
-          if (!SAFE_ATTRS.has(attr.name.toLowerCase())) {
-            element.removeAttribute(attr.name)
-          }
-
-          const val = attr.value.trim().toLowerCase()
-          if (
-            (attr.name === 'href' || attr.name === 'src') &&
-            (val.startsWith('javascript:') ||
-              val.startsWith('data:') ||
-              val.startsWith('vbscript:'))
-          ) {
-            element.removeAttribute(attr.name)
-          }
-        })
-
-        clean(element)
-      }
+// 让 marked 不解析内联 HTML，全部转义为纯文本显示
+marked.use({
+  renderer: {
+    html(token) {
+      return token.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     }
   }
-
-  clean(tmp)
-  return tmp.innerHTML
-}
+})
 
 export function renderMarkdown(text) {
   if (!text) return ''
   try {
-    marked.setOptions({
+    return marked.parse(text, {
       breaks: true,
       gfm: true,
-      highlight: function (code, lang) {
-        if (lang && hljs.getLanguage(lang)) {
-          return hljs.highlight(code, { language: lang }).value
-        }
-        return hljs.highlightAuto(code).value
-      }
     })
-    return sanitizeHTML(marked.parse(text))
   } catch (e) {
     return escapeHtml(text).replace(/\n/g, '<br>')
   }
