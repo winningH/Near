@@ -37,7 +37,7 @@ export function buildThinkingAndContent(reasoning, content) {
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>' +
       '<span>深度思考</span>' +
       '</div>' +
-      '<div class="thinking-body">' + renderMarkdown(reasoning) + '</div>' +
+      '<div class="thinking-body"><div class="thinking-body-inner">' + renderMarkdown(reasoning) + '</div></div>' +
       '</div>'
   }
   if (content && content.trim()) {
