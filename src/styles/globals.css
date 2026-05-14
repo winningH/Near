@@ -233,6 +233,7 @@ html:not(.dark) .hljs-strong { font-weight: bold; }
   border-radius: 10px;
   margin: 10px 0;
   overflow: hidden;
+  max-width: 100%;
 }
 
 .message-content pre code {

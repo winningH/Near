@@ -1,8 +1,8 @@
 <template>
-  <div ref="scrollContainer" class="flex-1 overflow-y-auto py-5" @click="handleContentClick">
+  <div ref="scrollContainer" class="flex-1 overflow-y-auto py-5 px-8" @click="handleContentClick">
     <div v-for="msg in messages" :key="msg.id" class="py-3 animate-fade-in">
       <div
-        class="max-w-3xl mx-auto px-8 flex gap-2.5"
+        class="max-w-3xl mx-auto flex gap-2.5"
         :class="msg.role === 'user' ? 'flex-row-reverse' : ''">
         <div
           class="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-semibold text-white"
@@ -64,7 +64,7 @@
           <div
             v-if="msg.content"
             ref="contentRefs"
-            class="message-content inline-block px-4 py-2.5"
+            class="message-content block max-w-full px-4 py-2.5"
             :class="
               msg.role === 'user'
                 ? 'rounded-[18px_18px_2px_18px] bg-gradient-to-br dark:from-[#6c63ff] dark:to-[#8b5cf6] from-indigo-500 to-purple-500 text-white'
@@ -76,7 +76,7 @@
     </div>
 
     <div v-if="isStreaming" class="py-3 animate-fade-in">
-      <div class="max-w-3xl mx-auto px-8 flex gap-2.5">
+      <div class="max-w-3xl mx-auto flex gap-2.5">
         <div
           class="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-semibold text-white bg-gradient-to-br dark:from-emerald-500 dark:to-emerald-400 from-emerald-500 to-teal-400">
           N
@@ -85,14 +85,14 @@
           <div class="text-[11px] mb-1 pl-0.5 dark:text-[#6a6a8e] text-slate-400">Near</div>
           <div
             ref="streamingRef"
-            class="message-content inline-block px-4 py-2.5 rounded-[18px_18px_18px_2px] dark:bg-[#16213e] bg-white dark:border-[#2a2a50] border-slate-200 border text-[14.5px] leading-relaxed dark:text-[#e8e8f0] text-slate-700"
+            class="message-content block max-w-full px-4 py-2.5 rounded-[18px_18px_18px_2px] dark:bg-[#16213e] bg-white dark:border-[#2a2a50] border-slate-200 border text-[14.5px] leading-relaxed dark:text-[#e8e8f0] text-slate-700"
             v-html="streamingHtml"></div>
         </div>
       </div>
     </div>
 
     <div v-if="error" class="py-3 animate-fade-in">
-      <div class="max-w-3xl mx-auto px-8 flex gap-2.5">
+      <div class="max-w-3xl mx-auto flex gap-2.5">
         <div
           class="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-semibold text-white bg-red-500">
           !
