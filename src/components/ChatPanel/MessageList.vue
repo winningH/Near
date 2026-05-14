@@ -1,5 +1,5 @@
 <template>
-  <div ref="scrollContainer" class="flex-1 overflow-y-auto py-5">
+  <div ref="scrollContainer" class="flex-1 overflow-y-auto py-5" @click="handleContentClick">
     <div v-for="msg in messages" :key="msg.id" class="py-3 animate-fade-in">
       <div
         class="max-w-3xl mx-auto px-8 flex gap-2.5"
@@ -111,7 +111,7 @@
 
 <script>
   import { formatFileSize, safeUrl } from '../../utils/helpers';
-  import { buildThinkingAndContent, highlightCode } from '../../utils/markdown';
+  import { buildThinkingAndContent, highlightCode, escapeHtml } from '../../utils/markdown';
 
   export default {
     name: 'MessageList',
@@ -157,7 +157,7 @@
 
       renderMessageContent(msg) {
         if (msg.role === 'user') {
-          return msg.content.replace(/\n/g, '<br>');
+          return escapeHtml(msg.content).replace(/\n/g, '<br>');
         }
         return buildThinkingAndContent(msg.reasoningContent, msg.content);
       },
@@ -179,6 +179,40 @@
       highlightStreaming() {
         const el = this.$refs.streamingRef;
         if (el && this.isStreaming) highlightCode(el);
+      },
+
+      handleContentClick(e) {
+        const header = e.target.closest('.thinking-header');
+        if (!header) return;
+        const block = header.closest('.thinking-block');
+        if (!block) return;
+        const body = block.querySelector('.thinking-body');
+        if (!body) return;
+
+        const isCollapsed = block.classList.contains('collapsed');
+
+        if (isCollapsed) {
+          // 展开：0 → scrollHeight → auto
+          const targetHeight = body.scrollHeight;
+          body.style.height = '0px';
+          // 强制回流
+          body.offsetHeight;
+          body.style.height = targetHeight + 'px';
+          const onEnd = () => {
+            body.style.height = '';
+            body.removeEventListener('transitionend', onEnd);
+          };
+          body.addEventListener('transitionend', onEnd);
+          block.classList.remove('collapsed');
+        } else {
+          // 收起：auto → scrollHeight → 0
+          const currentHeight = body.scrollHeight;
+          body.style.height = currentHeight + 'px';
+          // 强制回流
+          body.offsetHeight;
+          body.style.height = '0px';
+          block.classList.add('collapsed');
+        }
       },
 
       openLightbox(att) {
