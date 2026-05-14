@@ -1,5 +1,5 @@
 <template>
-  <div ref="scrollContainer" class="flex-1 overflow-y-auto py-5 px-8" @click="handleContentClick">
+  <div ref="scrollContainer" class="flex-1 overflow-y-auto py-5" @click="handleContentClick">
     <div v-for="msg in messages" :key="msg.id" class="py-3 animate-fade-in">
       <div
         class="max-w-3xl mx-auto flex gap-2.5"
