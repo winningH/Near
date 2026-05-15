@@ -1,6 +1,6 @@
 <template>
   <div>
-    <div v-if="isCollapsed" class="w-[52px] min-w-[52px] dark:bg-[#0f0f23] bg-slate-100 dark:border-[#2a2a50] border-slate-200 border-r flex flex-col items-center py-3 gap-2">
+    <div v-if="isCollapsed" class="w-[52px] min-w-[52px] h-full dark:bg-[#0f0f23] bg-slate-100 dark:border-[#2a2a50] border-slate-200 border-r flex flex-col items-center py-3 gap-2">
       <button
         class="w-9 h-9 rounded-lg flex items-center justify-center transition-colors
           dark:hover:bg-[#252545] dark:text-[#a0a0c0] dark:hover:text-[#e8e8f0]
@@ -23,7 +23,7 @@
       </button>
     </div>
 
-    <aside v-else class="w-[280px] min-w-[280px] dark:bg-[#0f0f23] bg-slate-100 dark:border-[#2a2a50] border-slate-200 border-r flex flex-col transition-all">
+    <aside v-else class="w-[280px] min-w-[280px] h-full dark:bg-[#0f0f23] bg-slate-100 dark:border-[#2a2a50] border-slate-200 border-r flex flex-col transition-all">
       <div class="flex items-center justify-between px-4 py-3 dark:border-b-[#2a2a50] border-b-slate-200 border-b">
         <div class="flex items-center gap-2.5">
           <svg class="w-7 h-7 dark:text-[#6c63ff] text-indigo-500" viewBox="0 0 32 32" fill="none">
