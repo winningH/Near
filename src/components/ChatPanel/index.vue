@@ -8,7 +8,8 @@
       @select="$emit('select-conversation', $event)"
       @new-chat="$emit('new-chat')"
       @delete="$emit('delete-conversation', $event)"
-      @rename="onRename" />
+      @rename="onRename"
+      @user-info-click="drawerOpen = true" />
 
     <main class="flex-1 flex flex-col min-w-0">
       <WelcomeScreen
@@ -29,6 +30,8 @@
         @stop="$emit('stop')"
         @toggle-think="$emit('toggle-think')" />
     </main>
+
+    <Drawer :visible.sync="drawerOpen" title="测试抽屉" />
   </div>
 </template>
 
@@ -37,11 +40,12 @@
   import WelcomeScreen from './WelcomeScreen';
   import MessageList from './MessageList';
   import ChatInput from './ChatInput';
+  import Drawer from './Drawer';
 
   export default {
     name: 'ChatPanel',
 
-    components: { Sidebar, WelcomeScreen, MessageList, ChatInput },
+    components: { Sidebar, WelcomeScreen, MessageList, ChatInput, Drawer },
 
     props: {
       conversations: { type: Array, default: () => [] },
@@ -53,6 +57,12 @@
       streamingContent: { type: String, default: '' },
       streamingReasoning: { type: String, default: '' },
       error: { type: String, default: null }
+    },
+
+    data() {
+      return {
+        drawerOpen: false
+      };
     },
 
     methods: {

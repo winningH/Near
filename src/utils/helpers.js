@@ -55,3 +55,34 @@ export function formatDate(date) {
 
   return d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
 }
+
+/**
+ * 高度折叠/展开动画
+ * @param {HTMLElement} el - 目标元素
+ * @param {boolean} expanding - true 展开，false 收起
+ * @param {number} duration - 动画时长(ms)
+ */
+export function toggleHeight(el, expanding, duration = 300) {
+  if (expanding) {
+    el.style.height = '0px'
+    el.offsetHeight // 强制回流
+    el.style.transition = `height ${duration}ms ease`
+    el.style.height = el.scrollHeight + 'px'
+    const onEnd = () => {
+      el.style.height = ''
+      el.style.transition = ''
+      el.removeEventListener('transitionend', onEnd)
+    }
+    el.addEventListener('transitionend', onEnd)
+  } else {
+    el.style.height = el.scrollHeight + 'px'
+    el.offsetHeight // 强制回流
+    el.style.transition = `height ${duration}ms ease`
+    el.style.height = '0px'
+    const onEnd = () => {
+      el.style.transition = ''
+      el.removeEventListener('transitionend', onEnd)
+    }
+    el.addEventListener('transitionend', onEnd)
+  }
+}

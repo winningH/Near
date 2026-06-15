@@ -330,9 +330,8 @@ html:not(.dark) .message-content hr { border-top: 1px solid #e2e8f0; }
 
 .thinking-body {
   overflow: hidden;
-  height: auto;
-  transition: height 0.3s ease, opacity 0.25s ease;
   opacity: 1;
+  transition: opacity 0.25s ease;
 }
 
 .thinking-body-inner {
@@ -346,7 +345,6 @@ html:not(.dark) .message-content hr { border-top: 1px solid #e2e8f0; }
 .thinking-body-inner ol { margin-bottom: 6px; }
 
 .thinking-block.collapsed .thinking-body {
-  height: 0 !important;
   opacity: 0;
 }
 

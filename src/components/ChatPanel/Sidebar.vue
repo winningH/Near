@@ -109,7 +109,11 @@
       </div>
 
       <div class="dark:border-t-[#2a2a50] border-t-slate-200 border-t p-3">
-        <div class="flex items-center gap-2.5">
+        <div
+          class="flex items-center gap-2.5 cursor-pointer rounded-lg p-1 -m-1 transition-colors
+            dark:hover:bg-[#252545] hover:bg-slate-200"
+          @click="$emit('user-info-click')"
+        >
           <div class="w-8 h-8 rounded-full bg-gradient-to-br dark:from-[#6c63ff] dark:to-[#a78bfa] from-indigo-500 to-purple-500 flex items-center justify-center text-white text-sm font-semibold">N</div>
           <span class="text-[13px] dark:text-[#a0a0c0] text-slate-500">Near 用户</span>
         </div>

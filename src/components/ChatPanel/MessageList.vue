@@ -110,7 +110,7 @@
 </template>
 
 <script>
-  import { formatFileSize, safeUrl } from '../../utils/helpers';
+  import { formatFileSize, safeUrl, toggleHeight } from '../../utils/helpers';
   import { buildThinkingAndContent, highlightCode, escapeHtml } from '../../utils/markdown';
 
   export default {
@@ -190,29 +190,8 @@
         if (!body) return;
 
         const isCollapsed = block.classList.contains('collapsed');
-
-        if (isCollapsed) {
-          // 展开：0 → scrollHeight → auto
-          const targetHeight = body.scrollHeight;
-          body.style.height = '0px';
-          // 强制回流
-          body.offsetHeight;
-          body.style.height = targetHeight + 'px';
-          const onEnd = () => {
-            body.style.height = '';
-            body.removeEventListener('transitionend', onEnd);
-          };
-          body.addEventListener('transitionend', onEnd);
-          block.classList.remove('collapsed');
-        } else {
-          // 收起：auto → scrollHeight → 0
-          const currentHeight = body.scrollHeight;
-          body.style.height = currentHeight + 'px';
-          // 强制回流
-          body.offsetHeight;
-          body.style.height = '0px';
-          block.classList.add('collapsed');
-        }
+        block.classList.toggle('collapsed');
+        toggleHeight(body, isCollapsed);
       },
 
       openLightbox(att) {
