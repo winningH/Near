@@ -90,18 +90,30 @@ function touchConversation(conversationId) {
 }
 
 router.post('/', async (req, res) => {
-  const { conversationId, message, attachments, model: reqModel } = req.body || {}
+  const { conversationId, message, attachments, model: reqModel, thinkMode } = req.body || {}
 
   if (!conversationId) {
     return res.status(400).json({ error: '缺少 conversationId' })
   }
-  if (!config.ai.apiKey) {
-    return res.status(500).json({ error: '服务端未配置 OPENAI_API_KEY，请在 .env 中填写后重启' })
+  // 配置不全时直接返回：不落库、不发起任何 AI 请求
+  if (!config.aiConfigured) {
+    return res.status(500).json({
+      error: `服务端缺少必填配置：${config.missing.join('、')}，请检查 .env 后重启`
+    })
   }
 
   // 只允许使用服务端配置过的模型，避免客户端任意指定模型
   const allowedModels = [config.ai.model, config.ai.thinkingModel].filter(Boolean)
-  const useModel = allowedModels.includes(reqModel) ? reqModel : config.ai.model
+
+  // 是否开启深度思考：以【前端开关】为准，而非模型名匹配。
+  // 必须服务端配置过思考模型，开关才生效。
+  const wantThink = Boolean(thinkMode)
+  const isThinking = wantThink && Boolean(config.ai.thinkingModel)
+
+  const useModel =
+    (reqModel && allowedModels.includes(reqModel))
+      ? reqModel
+      : (isThinking && config.ai.thinkingModel ? config.ai.thinkingModel : config.ai.model)
 
   let conversation
   try {
@@ -213,18 +225,17 @@ router.post('/', async (req, res) => {
 
     console.log(`[Chat] 模型 ${useModel}，上下文 ${messagesForAI.length} 条`)
 
-    const isThinking =
-      Boolean(config.ai.thinkingModel) && useModel === config.ai.thinkingModel
-
     const requestBody = {
       model: useModel,
       messages: messagesForAI,
       temperature: config.ai.temperature,
       stream: true
     }
-    // 部分服务商需要通过参数开启思考（如 enable_thinking / reasoning_effort）
-    if (isThinking && config.ai.thinkingParams) {
-      Object.assign(requestBody, config.ai.thinkingParams)
+    // 未勾选深度思考时，附加显式关闭参数（如智谱 {"thinking":{"type":"disabled"}}）。
+    // 智谱等接口拒绝 boolean 形式（传 thinking:false 会 400），必须用对象。
+    // 勾选时依赖模型默认行为（GLM-4.5 等推理模型默认即思考），无需附加任何参数。
+    if (!isThinking && config.ai.thinkingOffParams) {
+      Object.assign(requestBody, config.ai.thinkingOffParams)
     }
 
     const apiRes = await fetch(config.ai.chatUrl, {

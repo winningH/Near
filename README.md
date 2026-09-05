@@ -86,11 +86,11 @@ pnpm run dev
 
 | 变量名 | 必填 | 默认值 | 说明 |
 |--------|------|--------|------|
-| `OPENAI_API_KEY` | **是** | - | 接口密钥 |
-| `OPENAI_API_BASE` | 否 | `https://api.openai.com/v1` | 接口地址，自动补 `/v1` |
-| `OPENAI_MODEL` | 否 | `gpt-4o-mini` | 默认对话模型 |
+| `OPENAI_API_KEY` | **是** | 无 | 接口密钥 |
+| `OPENAI_API_BASE` | **是** | 无 | 接口地址，自动补 `/v1` |
+| `OPENAI_MODEL` | **是** | 无 | 对话模型，需与接口地址所属服务商对应 |
 | `OPENAI_THINKING_MODEL` | 否 | 空 | 深度思考模型，留空则关闭该功能 |
-| `OPENAI_THINKING_PARAMS` | 否 | 空 | 思考模式的额外请求参数，JSON 字符串，例如 `{"enable_thinking":true}` |
+| `OPENAI_THINKING_OFF_PARAMS` | 否 | `{}` | 关闭思考时附加的请求参数（JSON 对象）。智谱 GLM-4.5 必须用 `{"thinking":{"type":"disabled"}}`，不能用 boolean |
 | `OPENAI_TEMPERATURE` | 否 | `0.7` | 采样温度 |
 | `DATABASE_URL` | 否 | `file:./dev.db` | SQLite 路径，相对于 `prisma/` 目录 |
 | `PORT` | 否 | `3001` | 后端端口 |
@@ -100,9 +100,13 @@ pnpm run dev
 | `CHAT_RATE_LIMIT` | 否 | `30` | 每 IP 每分钟聊天请求上限 |
 | `UPLOAD_RATE_LIMIT` | 否 | `30` | 每 IP 每分钟上传请求上限 |
 | `MAX_CONTEXT_MESSAGES` | 否 | `40` | 携带的历史消息条数 |
-| `APP_NAME` | 否 | `Near` | 应用名称 |
 
-> 可通过 `OPENAI_THINKING_PARAMS`（JSON 对象）覆盖部分服务商独有的思考参数，例如 `{"enable_thinking":true}` 或 `{"reasoning_effort":"high"}`。
+> 三项必填配置**没有任何内置默认值**。缺失时服务启动会在日志里列出缺少哪些变量，
+> `/api/chat` 也会直接返回错误而不发起任何 AI 请求——不会出现"静默用了某个默认服务却调用失败"的情况。
+
+> `OPENAI_THINKING_OFF_PARAMS` 用于关闭那些"默认开启思考"的模型（如智谱 GLM-4.5）。
+> 不同服务商格式不同：智谱 `{"thinking":{"type":"disabled"}}`、通义 `{"enable_thinking":false}`。
+> 该参数必须是 JSON **对象**，传 boolean 会被智谱等接口直接 400 拒绝。
 
 ### 文件上传限制
 - 单文件最大 10MB，单次最多 10 个

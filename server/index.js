@@ -74,10 +74,12 @@ app.use((err, req, res, next) => {
 })
 
 const server = app.listen(config.port, () => {
-  console.log(`[${config.appName}] 后端已启动 http://localhost:${config.port}`)
-  console.log(`[${config.appName}] AI 接口 ${config.ai.chatUrl}  模型 ${config.ai.model}`)
-  if (!config.ai.apiKey) {
-    console.warn('[警告] 未配置 OPENAI_API_KEY，AI 接口无法调用，请在 .env 中填写')
+  console.log(`[Near] 后端已启动 http://localhost:${config.port}`)
+  if (config.aiConfigured) {
+    console.log(`[Near] AI 接口 ${config.ai.chatUrl}  模型 ${config.ai.model}`)
+  } else {
+    console.warn(`[Near] 缺少必填配置：${config.missing.join('、')}`)
+    console.warn('[Near] AI 功能不可用，请在 .env 中补全后重启')
   }
 })
 

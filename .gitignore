@@ -37,3 +37,6 @@ Thumbs.db
 
 # WorkBuddy agent 工作目录（记忆与任务数据，非项目源码）
 .workbuddy/
+
+# 构建产物（部署时由 build 脚本生成，不入库）
+dist/
