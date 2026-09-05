@@ -28,7 +28,7 @@
 </template>
 
 <script>
-  import ChatPanel from './components/ChatPanel';
+  import ChatPanel from './components';
   import { generateId } from './utils/helpers';
   import {
     fetchConversations,

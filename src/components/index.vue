@@ -1,5 +1,5 @@
 <template>
-  <div class="h-screen flex overflow-hidden dark:bg-[#1a1a2e] bg-slate-50">
+  <div class="h-screen flex min-w-[768px] dark:bg-[#1a1a2e] bg-slate-50">
     <Sidebar
       :conversations="conversations"
       :current-id="currentId"
@@ -9,12 +9,14 @@
       @new-chat="$emit('new-chat')"
       @delete="$emit('delete-conversation', $event)"
       @rename="onRename"
-      @user-info-click="drawerOpen = true" />
+      @user-info-click="drawerOpen = true"
+    />
 
     <main class="flex-1 flex flex-col min-w-0">
       <WelcomeScreen
         v-if="messages.length === 0 && !isStreaming"
-        @quick-action="$emit('quick-action', $event)" />
+        @quick-action="$emit('quick-action', $event)"
+      />
       <MessageList
         v-else
         :messages="messages"
@@ -24,15 +26,20 @@
         :error="error"
         :can-retry="canRetry"
         @dismiss-error="$emit('dismiss-error')"
-        @retry="$emit('retry')" />
+        @retry="$emit('retry')"
+      />
 
       <!-- 欢迎页状态下消息列表不渲染，错误横幅单独显示在输入区上方 -->
-      <div v-if="error && messages.length === 0 && !isStreaming" class="max-w-3xl mx-auto w-full px-8 pb-3">
+      <div
+        v-if="error && messages.length === 0 && !isStreaming"
+        class="max-w-3xl mx-auto w-full px-8 pb-3"
+      >
         <ErrorBanner
           :error="error"
           :can-retry="canRetry"
           @retry="$emit('retry')"
-          @dismiss="$emit('dismiss-error')" />
+          @dismiss="$emit('dismiss-error')"
+        />
       </div>
 
       <ChatInput
@@ -42,10 +49,11 @@
         @send="onSend"
         @stop="$emit('stop')"
         @notify="$emit('notify', $event)"
-        @toggle-think="$emit('toggle-think')" />
+        @toggle-think="$emit('toggle-think')"
+      />
     </main>
 
-    <Drawer :visible.sync="drawerOpen" title="设置与关于" />
+    <Drawer :visible.sync="drawerOpen" />
   </div>
 </template>
 

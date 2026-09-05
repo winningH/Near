@@ -1,65 +1,59 @@
 <template>
   <div
     ref="scrollContainer"
-    class="flex-1 overflow-y-auto py-5"
+    class="flex-1 overflow-y-auto py-5 px-8"
     @click="handleContentClick"
-    @scroll="handleScroll">
+    @scroll="handleScroll"
+  >
     <div v-for="msg in messages" :key="msg.id" class="py-3 animate-fade-in">
       <div
         class="max-w-3xl mx-auto flex gap-2.5"
-        :class="msg.role === 'user' ? 'flex-row-reverse' : ''">
+        :class="msg.role === 'user' ? 'flex-row-reverse' : ''"
+      >
         <div
           class="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-semibold text-white"
           :class="
             msg.role === 'user'
               ? 'bg-gradient-to-br dark:from-[#6c63ff] dark:to-[#a78bfa] from-indigo-500 to-purple-500'
               : 'bg-gradient-to-br dark:from-emerald-500 dark:to-emerald-400 from-emerald-500 to-teal-400'
-          ">
+          "
+        >
           {{ msg.role === 'user' ? 'U' : 'N' }}
         </div>
 
         <div
           class="max-w-[calc(100%-56px)] min-w-0"
-          :class="msg.role === 'user' ? 'items-end flex flex-col' : ''">
-          <div
-            class="text-[11px] mb-1 dark:text-[#6a6a8e] text-slate-400"
-            :class="msg.role === 'user' ? 'pr-0.5' : 'pl-0.5'">
-            {{ msg.role === 'user' ? '你' : 'Near' }}
-          </div>
-
+          :class="msg.role === 'user' ? 'items-end flex flex-col' : ''"
+        >
           <div
             v-if="msg.attachments && msg.attachments.length > 0"
             class="flex flex-wrap gap-1.5 mb-2"
-            :class="msg.role === 'user' ? 'justify-end' : ''">
+            :class="msg.role === 'user' ? 'justify-end' : ''"
+          >
             <template v-for="att in msg.attachments">
               <div
                 v-if="att.type && att.type.startsWith('image/')"
-                :key="att.id"
-                class="relative group">
+                :key="'img-' + att.id"
+                class="relative group rounded-lg overflow-hidden bg-white dark:bg-[#252545] border border-slate-200 dark:border-[#2a2a50]"
+              >
                 <img
                   :src="safeUrl(att.url)"
                   :alt="att.name"
-                  class="w-11 h-11 rounded-md object-cover cursor-pointer"
-                  @click="openLightbox(att)" />
+                  class="w-11 h-11 object-cover cursor-pointer block"
+                  @click="openLightbox(att)"
+                />
               </div>
               <div
                 v-else
-                class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs"
-                :class="
-                  msg.role === 'user'
-                    ? 'bg-white/15 text-white/85'
-                    : 'dark:bg-[#252545] bg-slate-100 dark:text-[#a0a0c0] text-slate-600'
-                ">
+                :key="'file-' + att.id"
+                class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs bg-white dark:bg-[#252545] border border-slate-200 dark:border-[#2a2a50] text-slate-600 dark:text-[#a0a0c0]"
+              >
                 <span>📄</span>
                 <div class="flex flex-col">
                   <span class="font-medium truncate max-w-[140px]">{{ att.name }}</span>
-                  <span
-                    class="text-[10px]"
-                    :class="
-                      msg.role === 'user' ? 'text-white/60' : 'dark:text-[#6a6a8e] text-slate-400'
-                    ">
-                    {{ formatFileSize(att.size) }}
-                  </span>
+                  <span class="text-[10px] dark:text-[#6a6a8e] text-slate-400">{{
+                    formatFileSize(att.size)
+                  }}</span>
                 </div>
               </div>
             </template>
@@ -70,10 +64,11 @@
             class="message-content block max-w-full px-4 py-2.5"
             :class="
               msg.role === 'user'
-                ? 'rounded-[18px_18px_2px_18px] bg-gradient-to-br dark:from-[#6c63ff] dark:to-[#8b5cf6] from-indigo-500 to-purple-500 text-white'
+                ? 'rounded-[18px_18px_2px_18px] bg-indigo-100 dark:bg-[#33335c] text-slate-800 dark:text-[#e8e8f0]'
                 : 'rounded-[18px_18px_18px_2px] dark:bg-[#16213e] bg-white dark:border-[#2a2a50] border-slate-200 border text-[14.5px] leading-relaxed dark:text-[#e8e8f0] text-slate-700'
             "
-            v-html="renderMessageContent(msg)"></div>
+            v-html="renderMessageContent(msg)"
+          ></div>
         </div>
       </div>
     </div>
@@ -81,15 +76,16 @@
     <div v-if="isStreaming" class="py-3 animate-fade-in">
       <div class="max-w-3xl mx-auto flex gap-2.5">
         <div
-          class="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-semibold text-white bg-gradient-to-br dark:from-emerald-500 dark:to-emerald-400 from-emerald-500 to-teal-400">
+          class="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-semibold text-white bg-gradient-to-br dark:from-emerald-500 dark:to-emerald-400 from-emerald-500 to-teal-400"
+        >
           N
         </div>
-        <div class="max-w-[calc(100%-56px)] min-w-0">
-          <div class="text-[11px] mb-1 pl-0.5 dark:text-[#6a6a8e] text-slate-400">Near</div>
+        <div class="max-w-[calc(100%-56px)] min-w-0 pt-1">
           <div
             ref="streamingRef"
             class="message-content block max-w-full px-4 py-2.5 rounded-[18px_18px_18px_2px] dark:bg-[#16213e] bg-white dark:border-[#2a2a50] border-slate-200 border text-[14.5px] leading-relaxed dark:text-[#e8e8f0] text-slate-700"
-            v-html="streamingHtml"></div>
+            v-html="streamingHtml"
+          ></div>
         </div>
       </div>
     </div>
@@ -100,20 +96,33 @@
         :error="error"
         :can-retry="canRetry"
         @retry="$emit('retry')"
-        @dismiss="$emit('dismiss-error')" />
+        @dismiss="$emit('dismiss-error')"
+      />
     </div>
+
+    <Lightbox :att="lightboxAtt" @close="lightboxAtt = null" />
   </div>
 </template>
 
 <script>
-  import { formatFileSize, safeUrl, toggleHeight } from '../../utils/helpers';
-  import { buildThinkingAndContent, highlightCode, escapeHtml } from '../../utils/markdown';
+  import { formatFileSize, safeUrl, toggleHeight } from '../utils/helpers';
+  import { buildThinkingAndContent, highlightCode, escapeHtml } from '../utils/markdown';
   import ErrorBanner from './ErrorBanner';
+  import Lightbox from './Lightbox';
 
   export default {
     name: 'MessageList',
 
-    components: { ErrorBanner },
+    components: { ErrorBanner, Lightbox },
+
+    data() {
+      return {
+        // 用户是否贴在底部——用于决定是否跟随流式输出自动滚动
+        userAtBottom: true,
+        // 当前预览大图的附件，null 表示未打开
+        lightboxAtt: null
+      };
+    },
 
     props: {
       messages: { type: Array, default: () => [] },
@@ -122,13 +131,6 @@
       streamingReasoning: { type: String, default: '' },
       error: { type: String, default: null },
       canRetry: { type: Boolean, default: false }
-    },
-
-    data() {
-      return {
-        // 用户是否贴在底部——用于决定是否跟随流式输出自动滚动
-        userAtBottom: true
-      };
     },
 
     computed: {
@@ -229,29 +231,43 @@
       },
 
       openLightbox(att) {
-        // 用 DOM API 构建，避免把文件名拼进 innerHTML 造成注入
-        const overlay = document.createElement('div');
-        overlay.className = 'lightbox-overlay';
-        overlay.style.display = 'flex';
-
-        const img = document.createElement('img');
-        img.className = 'lightbox-img';
-        img.src = safeUrl(att.url);
-        img.alt = att.name || '';
-        overlay.appendChild(img);
-
-        const close = () => {
-          overlay.remove();
-          document.removeEventListener('keydown', onKey);
-        };
-        function onKey(e) {
-          if (e.key === 'Escape') close();
-        }
-
-        overlay.onclick = close;
-        document.addEventListener('keydown', onKey);
-        document.body.appendChild(overlay);
+        this.lightboxAtt = att;
       }
     }
   };
 </script>
+
+<style scoped>
+  .typing-indicator {
+    display: inline-flex;
+    gap: 5px;
+    padding: 12px 18px;
+  }
+
+  .typing-indicator span {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    animation: typing 1.4s infinite ease-in-out;
+  }
+
+  .typing-indicator span:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+  .typing-indicator span:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+
+  @keyframes typing {
+    0%,
+    80%,
+    100% {
+      opacity: 0.25;
+      transform: scale(0.85);
+    }
+    40% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+</style>
