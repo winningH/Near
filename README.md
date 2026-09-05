@@ -179,7 +179,7 @@ Near/
 - 出现真实的依赖版本冲突（例如某个后端包和 webpack 工具链需要同一包的不同大版本）
 - 后端依赖明显膨胀（加 Redis、队列、认证等），前端工具链又很重
 
-真要拆的话，`uuid` 需要两边各装一份（前端用 `src/utils/helpers.js` 里的 `generateId()`，不依赖 uuid 包），`prisma/` 目录和 `public/uploads` 的归属也要重新规划。
+真要拆的话，`uuid` 需要两边各装一份（前端用 `src/utils/helpers.js` 里的 `generateId()`，不依赖 uuid 包），`prisma` 目录和 `uploads/` 的归属也要重新规划。
 
 ## 🗄️ 数据库模型
 
@@ -232,7 +232,7 @@ NODE_ENV=production PORT=3001 node server/index.js
 生产环境建议：
 - 设置 `CORS_ORIGIN` 为实际前端域名，不要留空
 - 用 Nginx / Caddy 做 HTTPS 与反向代理
-- 定期备份 `prisma/dev.db` 与 `public/uploads`
+- 定期备份 `prisma/dev.db` 与 `uploads/`
 
 ## 🛡️ 安全说明
 

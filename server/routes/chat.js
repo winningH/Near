@@ -6,7 +6,7 @@ const prisma = require('../prisma')
 const config = require('../config')
 const { v4: uuidv4 } = require('uuid')
 
-const UPLOAD_DIR = path.join(__dirname, '..', '..', 'public', 'uploads')
+const UPLOAD_DIR = config.upload.dir
 const MAX_CONTEXT_MESSAGES = Number(process.env.MAX_CONTEXT_MESSAGES) || 40
 const MAX_TEXT_CHARS = 20000
 
@@ -58,7 +58,7 @@ function buildContent(text, attachments, withVision) {
         const base64 = fs.readFileSync(filePath).toString('base64')
         images.push({ type: 'image_url', image_url: { url: `data:${att.type};base64,${base64}` } })
       } else {
-        blocks.push(`\n\n[附件: ${att.name}]（图片，未启用视觉能力）`)
+        blocks.push(`\n\n[附件: ${att.name}]（图片，当前模型不支持视觉，无法读取其内容）`)
       }
       continue
     }
@@ -212,22 +212,24 @@ router.post('/', async (req, res) => {
     })
     recentMessages.reverse()
 
-    const messagesForAI = recentMessages
-      .filter(m => m.role === 'user' || m.content)
-      .map((m, index, arr) => {
-        // 仅最后一条用户消息携带图片，节省 token
-        const withVision = config.ai.enableVision && m.role === 'user' && index === arr.length - 1
-        return {
-          role: m.role === 'assistant' ? 'assistant' : 'user',
-          content: buildContent(m.content, m.attachments, withVision)
-        }
-      })
+    const buildMessages = withVision =>
+      recentMessages
+        .filter(m => m.role === 'user' || m.content)
+        .map((m, index, arr) => {
+          // 仅最后一条用户消息携带图片，节省 token
+          const useVision = withVision && config.ai.enableVision && m.role === 'user' && index === arr.length - 1
+          return {
+            role: m.role === 'assistant' ? 'assistant' : 'user',
+            content: buildContent(m.content, m.attachments, useVision)
+          }
+        })
+
+    let messagesForAI = buildMessages(true)
 
     console.log(`[Chat] 模型 ${useModel}，上下文 ${messagesForAI.length} 条`)
 
     const requestBody = {
       model: useModel,
-      messages: messagesForAI,
       temperature: config.ai.temperature,
       stream: true
     }
@@ -238,15 +240,27 @@ router.post('/', async (req, res) => {
       Object.assign(requestBody, config.ai.thinkingOffParams)
     }
 
-    const apiRes = await fetch(config.ai.chatUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${config.ai.apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(requestBody),
-      signal: upstreamController.signal
-    })
+    const callChatApi = () =>
+      fetch(config.ai.chatUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${config.ai.apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ ...requestBody, messages: messagesForAI }),
+        signal: upstreamController.signal
+      })
+
+    let apiRes = await callChatApi()
+
+    // 纯文本模型收到 image_url 多模态内容会报 400（如智谱 1210 "content.type 参数非法"）。
+    // 此时去掉图片降级为纯文本重试一次，保证消息流程不中断
+    if (!apiRes.ok && apiRes.status === 400 && messagesForAI.some(m => Array.isArray(m.content))) {
+      const firstError = await apiRes.text()
+      console.warn('[Chat] 模型不支持图片输入，降级为纯文本重试。原始错误:', firstError.slice(0, 300))
+      messagesForAI = buildMessages(false)
+      apiRes = await callChatApi()
+    }
 
     if (!apiRes.ok) {
       const errText = await apiRes.text()
@@ -321,6 +335,8 @@ router.post('/', async (req, res) => {
     }
 
     console.error('聊天请求失败:', error)
+    // 先落库已生成的部分内容（与用户中断的行为一致），避免界面重载后丢失
+    await saveAssistantMessage()
     if (!res.headersSent) {
       return res.status(502).json({ error: error.message || 'AI 服务请求失败' })
     }

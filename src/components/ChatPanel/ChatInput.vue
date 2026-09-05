@@ -171,7 +171,7 @@
 
 <script>
 import { formatFileSize } from '../../utils/helpers'
-import { uploadFiles as uploadFilesApi } from '../../api'
+import { uploadFiles as uploadFilesApi, deleteUploadedFile } from '../../api'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 
@@ -324,7 +324,12 @@ export default {
     },
 
     removeAttachment(index) {
+      const att = this.attachments[index]
       this.attachments = this.attachments.filter((_, i) => i !== index)
+      // 仅清理待发送的落盘文件；发送后附件归消息历史所有，不删
+      if (att && att.url) {
+        deleteUploadedFile(att.url).catch(() => {})
+      }
     },
 
     scrollAttachments(direction) {

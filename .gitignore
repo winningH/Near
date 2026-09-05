@@ -14,7 +14,6 @@ prisma/*.db-journal
 
 # Uploads
 uploads/
-public/uploads/
 
 # Environment
 .env

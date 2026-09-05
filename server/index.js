@@ -10,6 +10,7 @@ const conversationsRoute = require('./routes/conversations')
 const conversationDetailRoute = require('./routes/conversationDetail')
 const uploadRoute = require('./routes/upload')
 const configRoute = require('./routes/config')
+const { scheduleOrphanCleanup } = require('./cleanup')
 
 const app = express()
 
@@ -38,7 +39,7 @@ app.use((req, res, next) => {
   next()
 })
 
-app.use('/uploads', express.static(path.join(__dirname, '..', 'public', 'uploads')))
+app.use('/uploads', express.static(config.upload.dir))
 
 app.use('/api/config', configRoute)
 app.use(
@@ -94,5 +95,7 @@ function shutdown(signal) {
 
 process.on('SIGINT', () => shutdown('SIGINT'))
 process.on('SIGTERM', () => shutdown('SIGTERM'))
+
+scheduleOrphanCleanup()
 
 module.exports = server

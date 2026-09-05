@@ -6,7 +6,7 @@ const fs = require('fs')
 const { v4: uuidv4 } = require('uuid')
 const config = require('../config')
 
-const UPLOAD_DIR = path.join(__dirname, '..', '..', 'public', 'uploads')
+const UPLOAD_DIR = config.upload.dir
 
 const ALLOWED_MIME = new Set([
   'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/bmp',
@@ -54,6 +54,30 @@ const upload = multer({
     }
     return cb(new Error(`不支持的文件类型：${file.originalname}`))
   }
+})
+
+// 本服务的落盘文件名固定为 uuid（+可选扩展名），按此校验防止误删其他文件
+const FILENAME_RE = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}(\.[a-z0-9]+)?$/i
+
+// 删除待发送区附件时同步清理落盘文件；已发送消息的附件不经过这里
+router.delete('/:filename', (req, res) => {
+  const filename = path.basename(req.params.filename || '')
+  if (!FILENAME_RE.test(filename)) {
+    return res.status(400).json({ error: '非法的文件名' })
+  }
+
+  const filePath = path.join(UPLOAD_DIR, filename)
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: '文件不存在' })
+  }
+
+  fs.unlink(filePath, err => {
+    if (err) {
+      console.error('删除上传文件失败:', err)
+      return res.status(500).json({ error: '删除失败' })
+    }
+    res.json({ ok: true })
+  })
 })
 
 router.post('/', (req, res) => {

@@ -49,6 +49,16 @@ export async function uploadFiles(formData) {
   return res.json();
 }
 
+export function deleteUploadedFile(url) {
+  const filename = String(url || '').split('/').pop();
+  if (!filename) return Promise.resolve();
+  return fetch(`${API_BASE}/upload/${encodeURIComponent(filename)}`, { method: 'DELETE' })
+    .then(res => {
+      if (!res.ok) throw new Error('删除文件失败');
+      return res.json();
+    });
+}
+
 export function chatStream(conversationId, message, attachments, model, thinkMode, signal) {
   return fetch(`${API_BASE}/chat`, {
     method: 'POST',

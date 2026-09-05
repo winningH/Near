@@ -252,9 +252,14 @@
               if (!trimmed.startsWith('data: ')) continue;
               try {
                 const data = JSON.parse(trimmed.slice(6));
-                if (data.content !== undefined) this.streamingContent = data.content;
-                if (data.reasoning_content !== undefined) this.streamingReasoning = data.reasoning_content;
-                if (data.error) this.error = data.content || '生成失败';
+                if (data.error) {
+                  // 错误事件只进错误横幅，不作为流式增量渲染，
+                  // 否则错误文字会在气泡里闪现一下又随流结束消失
+                  this.error = data.content || '生成失败';
+                } else {
+                  if (data.content !== undefined) this.streamingContent = data.content;
+                  if (data.reasoning_content !== undefined) this.streamingReasoning = data.reasoning_content;
+                }
                 if (data.done) {
                   completed = true;
                   await this.loadConversations();
