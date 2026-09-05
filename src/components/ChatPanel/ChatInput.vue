@@ -31,10 +31,27 @@
               v-for="(att, index) in attachments"
               :key="att.id"
               class="relative flex-shrink-0 group"
-              :class="att.type && att.type.startsWith('image/') ? '' : 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg dark:bg-[#252545] bg-slate-100'"
+              :class="!att.uploading && att.type && att.type.startsWith('image/') ? '' : 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg dark:bg-[#252545] bg-slate-100'"
             >
-              <div v-if="att.type && att.type.startsWith('image/')" class="relative">
-                <img :src="att.url" :alt="att.name" class="w-16 h-16 rounded-md object-cover" />
+              <!-- 上传中的占位：成功后替换为服务端数据，失败则整项移除 -->
+              <div
+                v-if="att.uploading"
+                class="w-16 h-16 rounded-md dark:bg-[#1e1e3a] bg-white border border-dashed border-slate-300 dark:border-[#2a2a50] flex items-center justify-center"
+                title="上传中..."
+              >
+                <svg class="w-5 h-5 animate-spin text-slate-400 dark:text-[#6a6a8e]" viewBox="0 0 24 24" fill="none">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+              </div>
+              <div v-else-if="att.type && att.type.startsWith('image/')" class="relative">
+                <img
+                  :src="safeUrl(att.url)"
+                  :alt="att.name"
+                  class="w-16 h-16 rounded-md object-cover cursor-pointer"
+                  title="点击预览"
+                  @click="openLightbox(att)"
+                />
                 <button
                   class="absolute -top-1.5 -right-1.5 w-[18px] h-[18px] rounded-full bg-red-500 text-white
                     flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity
@@ -145,14 +162,14 @@
             />
 
             <button
-              :disabled="!isStreaming && !hasContent"
+              :disabled="(!isStreaming && !hasContent) || isUploading"
               :class="isStreaming
                 ? 'bg-red-500 hover:bg-red-600 text-white'
-                : hasContent
+                : hasContent && !isUploading
                   ? 'dark:bg-[#6c63ff] bg-indigo-500 text-white dark:hover:bg-[#7b73ff] hover:bg-indigo-600'
                   : 'dark:bg-[#252545] bg-slate-100 dark:text-[#6a6a8e] text-slate-400 cursor-not-allowed'"
               class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 transition-all"
-              :title="isStreaming ? '中断生成' : '发送消息'"
+              :title="isUploading ? '附件上传中...' : (isStreaming ? '中断生成' : '发送消息')"
               @click="handleSend"
             >
               <svg v-if="isStreaming" class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="currentColor">
@@ -170,7 +187,7 @@
 </template>
 
 <script>
-import { formatFileSize } from '../../utils/helpers'
+import { formatFileSize, generateId, safeUrl } from '../../utils/helpers'
 import { uploadFiles as uploadFilesApi, deleteUploadedFile } from '../../api'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024
@@ -228,6 +245,32 @@ export default {
 
   methods: {
     formatFileSize,
+    safeUrl,
+
+    // 点击缩略图预览大图（与消息列表中的图片预览同款样式）
+    openLightbox(att) {
+      const overlay = document.createElement('div')
+      overlay.className = 'lightbox-overlay'
+      overlay.style.display = 'flex'
+
+      const img = document.createElement('img')
+      img.className = 'lightbox-img'
+      img.src = safeUrl(att.url)
+      img.alt = att.name || ''
+      overlay.appendChild(img)
+
+      const close = () => {
+        overlay.remove()
+        document.removeEventListener('keydown', onKey)
+      }
+      function onKey(e) {
+        if (e.key === 'Escape') close()
+      }
+
+      overlay.onclick = close
+      document.addEventListener('keydown', onKey)
+      document.body.appendChild(overlay)
+    },
 
     focusTextarea() {
       this.$refs.textarea.focus()
@@ -245,6 +288,8 @@ export default {
         this.$emit('stop')
         return
       }
+      // 还有附件在上传中：发送会引用尚未存在的文件，直接忽略
+      if (this.isUploading) return
 
       const trimmed = this.message.trim()
       if (!trimmed && this.attachments.length === 0) return
@@ -277,14 +322,33 @@ export default {
 
     async uploadFiles(files) {
       this.isUploading = true
+      // 乐观占位：文件先以“上传中”状态显示，成功后替换为服务端数据，失败则整组移除
+      const pending = files.map(file => ({
+        id: 'pending-' + generateId(),
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        uploading: true
+      }))
+      this.attachments = [...this.attachments, ...pending]
+
       const formData = new FormData()
       files.forEach(file => formData.append('files', file))
 
       try {
         const uploaded = await uploadFilesApi(formData)
-        this.attachments = [...this.attachments, ...uploaded]
+        if (!Array.isArray(uploaded) || uploaded.length !== pending.length) {
+          throw new Error('上传响应异常')
+        }
+        // 服务端按提交顺序返回，与占位项一一对应替换
+        this.attachments = this.attachments.map(att => {
+          const idx = pending.indexOf(att)
+          return idx !== -1 ? uploaded[idx] : att
+        })
       } catch (err) {
         console.error('上传文件失败:', err)
+        // 未上传成功的附件不留在附件区
+        this.attachments = this.attachments.filter(att => !pending.includes(att))
         this.$emit('notify', '上传失败，请检查文件大小（≤10MB）与类型是否受支持')
       } finally {
         this.isUploading = false

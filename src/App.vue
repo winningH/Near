@@ -20,6 +20,8 @@
       @stop="handleStopStreaming"
       @toggle-think="handleToggleThink"
       @dismiss-error="error = null"
+      @retry="handleRetry"
+      :can-retry="!!lastFailed"
       @notify="error = $event"
       @quick-action="handleQuickAction" />
   </div>
@@ -54,6 +56,8 @@
         streamingReasoning: '',
         isLoading: true,
         error: null,
+        // 最近一次失败的消息，供错误横幅上的“重试”复用
+        lastFailed: null,
         abortController: null,
         runtimeConfig: {
           appName: 'Near',
@@ -193,13 +197,14 @@
 
         this.error = null;
 
-        this.messages.push({
+        const localMsg = {
           id: generateId(),
           role: 'user',
           content: content,
           attachments: attachments,
           timestamp: new Date().toISOString()
-        });
+        };
+        this.messages.push(localMsg);
 
         this.isStreaming = true;
         this.streamingContent = '';
@@ -212,6 +217,8 @@
             : undefined;
 
         let completed = false;
+        // 首轮失败被服务端回滚：消息只存在于本地界面，不能刷新列表，否则会被清空回欢迎页
+        let rolledBack = false;
 
         try {
           const res = await chatStream(
@@ -226,13 +233,17 @@
           if (!res.ok) {
             const errorText = await res.text();
             let message = '发送消息失败: ' + res.status;
+            let serverRolledBack = false;
             try {
               const parsed = JSON.parse(errorText);
               if (parsed && parsed.error) message = parsed.error;
+              serverRolledBack = !!(parsed && parsed.rolledBack);
             } catch (e) {
               if (errorText) message += ' ' + errorText.slice(0, 200);
             }
-            throw new Error(message);
+            const err = new Error(message);
+            err.rolledBack = serverRolledBack;
+            throw err;
           }
 
           const reader = res.body.getReader();
@@ -256,14 +267,18 @@
                   // 错误事件只进错误横幅，不作为流式增量渲染，
                   // 否则错误文字会在气泡里闪现一下又随流结束消失
                   this.error = data.content || '生成失败';
+                  this.lastFailed = { content, attachments, localMsgId: localMsg.id };
+                  rolledBack = !!data.rolledBack;
                 } else {
                   if (data.content !== undefined) this.streamingContent = data.content;
                   if (data.reasoning_content !== undefined) this.streamingReasoning = data.reasoning_content;
                 }
                 if (data.done) {
                   completed = true;
-                  await this.loadConversations();
-                  await this.loadMessages(conversationId);
+                  if (!rolledBack) {
+                    await this.loadConversations();
+                    await this.loadMessages(conversationId);
+                  }
                 }
               } catch (e) {
                 console.warn('解析 SSE 数据失败:', e);
@@ -273,8 +288,10 @@
 
           if (!completed) {
             completed = true;
-            await this.loadConversations();
-            await this.loadMessages(conversationId);
+            if (!rolledBack) {
+              await this.loadConversations();
+              await this.loadMessages(conversationId);
+            }
           }
         } catch (err) {
           if (err.name === 'AbortError') {
@@ -282,18 +299,33 @@
           } else {
             console.error('聊天请求失败:', err);
             this.error = err.message || '请求失败，请检查网络连接或 API 配置';
+            this.lastFailed = { content, attachments, localMsgId: localMsg.id };
+            rolledBack = !!err.rolledBack;
           }
         } finally {
           this.isStreaming = false;
           this.streamingContent = '';
           this.streamingReasoning = '';
           this.abortController = null;
-          // 异常或中断时也要同步一次，避免已落库的回复在界面上丢失
-          if (!completed) {
+          // 本次发送没出过错才清掉失败记录，保证横幅上的“重试”始终有据可依
+          if (!this.error) this.lastFailed = null;
+          // 异常或中断时也要同步一次，避免已落库的回复在界面上丢失。
+          // 回滚的首轮除外：消息已从库中删除，刷新会把界面清空回欢迎页
+          if (!completed && !rolledBack) {
             this.loadConversations();
             this.loadMessages(conversationId);
           }
         }
+      },
+
+      handleRetry() {
+        if (!this.lastFailed || this.isStreaming) return;
+        const { content, attachments, localMsgId } = this.lastFailed;
+        // 失败轮未入库时旧气泡仅存于本地：先移除再重发，避免重试后出现两条
+        if (localMsgId) {
+          this.messages = this.messages.filter(m => m.id !== localMsgId);
+        }
+        this.handleSendMessage(content, attachments);
       },
 
       handleStopStreaming() {

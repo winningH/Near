@@ -89,6 +89,71 @@ function touchConversation(conversationId) {
   }).catch(() => {})
 }
 
+/**
+ * 首轮即失败时回滚：会话里只剩这条没有回复的用户消息时不留历史，
+ * 避免反复报错在侧边栏堆积空会话。count>1 说明是中途失败，保留上下文。
+ * 返回是否发生了回滚，供前端区分：回滚的消息仅存于本地界面，不刷新消息列表。
+ */
+async function rollbackIfFirstRoundFailure(conversationId) {
+  try {
+    const count = await prisma.message.count({ where: { conversationId } })
+    if (count === 1) {
+      await prisma.conversation.delete({ where: { id: conversationId } })
+      console.log('[Chat] 首轮失败，已回滚会话')
+      return true
+    }
+  } catch (e) {
+    console.error('回滚首轮失败会话:', e)
+  }
+  return false
+}
+
+/**
+ * 首轮对话成功后，让模型把对话总结成简短标题，替换掉临时的“用户输入/文件名”标题。
+ * 失败时静默保留临时标题，不影响主流程。
+ */
+async function generateAiTitle(conversationId, source) {
+  try {
+    const res = await fetch(config.ai.chatUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${config.ai.apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: config.ai.model,
+        messages: [
+          {
+            role: 'system',
+            content: '你是会话标题生成器。根据对话内容生成一个简短标题，要求：不超过16个字，概括主题，直接输出标题本身，不要引号、句号或其他任何多余文字。'
+          },
+          { role: 'user', content: String(source || '').slice(0, 800) }
+        ],
+        temperature: 0.3,
+        stream: false,
+        max_tokens: 512,
+        // 思考模型（如 glm-4.5-air）会先输出 reasoning_content，小 max_tokens 会被思考耗尽，
+        // 复用应用级的思考关闭参数让标题直接出结果
+        ...(config.ai.thinkingOffParams || {})
+      }),
+      signal: AbortSignal.timeout(15000)
+    })
+    if (!res.ok) {
+      console.warn('[Chat] 标题生成请求失败:', res.status, (await res.text()).slice(0, 200))
+      return
+    }
+    const data = await res.json()
+    const message = data.choices && data.choices[0] && data.choices[0].message
+    const raw = String((message && (message.content || message.reasoning_content)) || '')
+    const title = raw.trim().replace(/\s+/g, ' ').slice(0, 30)
+    if (title) {
+      await prisma.conversation.update({ where: { id: conversationId }, data: { title } })
+    }
+  } catch (e) {
+    console.warn('[Chat] 生成会话标题失败:', e.message)
+  }
+}
+
 router.post('/', async (req, res) => {
   const { conversationId, message, attachments, model: reqModel, thinkMode } = req.body || {}
 
@@ -145,18 +210,20 @@ router.post('/', async (req, res) => {
     return res.status(500).json({ error: '保存消息失败' })
   }
 
-  // 首条用户消息用来自动作标题
+  // 首条用户消息用来自动作标题（临时标题，首轮回复成功后会被 AI 总结替换）
+  let isFirstRound = false
+  let titleSource = String(message || '').trim().replace(/\s+/g, ' ')
+  if (!titleSource && Array.isArray(attachments) && attachments.length > 0) {
+    titleSource = attachments.map(a => a.name).join(', ')
+  }
   try {
     const userMessageCount = await prisma.message.count({ where: { conversationId, role: 'user' } })
     if (userMessageCount === 1) {
-      let title = String(message || '').trim().replace(/\s+/g, ' ')
-      if (!title && Array.isArray(attachments) && attachments.length > 0) {
-        title = attachments.map(a => a.name).join(', ')
-      }
-      if (title) {
+      isFirstRound = true
+      if (titleSource) {
         await prisma.conversation.update({
           where: { id: conversationId },
-          data: { title: title.length > 30 ? title.slice(0, 30) + '…' : title }
+          data: { title: titleSource.length > 30 ? titleSource.slice(0, 30) + '…' : titleSource }
         })
       }
     }
@@ -315,10 +382,17 @@ router.post('/', async (req, res) => {
       // 用户中断：保留已生成的部分内容，保证上下文连续
       console.log('[Chat] 客户端中断生成')
       await saveAssistantMessage()
+      // 一个字都没生成就中断的首轮，同样不留空会话
+      if (!fullContent && !fullReasoning) await rollbackIfFirstRoundFailure(conversationId)
       return
     }
 
     await saveAssistantMessage()
+
+    // 首轮对话成功：用模型总结标题（等它完成再发 done，前端刷新侧边栏就能拿到新标题）
+    if (isFirstRound) {
+      await generateAiTitle(conversationId, `用户：${titleSource || '（发送了附件）'}\n助手：${fullContent}`)
+    }
 
     writeEvent(res, {
       id: aiMsgId,
@@ -331,20 +405,24 @@ router.post('/', async (req, res) => {
     if (aborted || error.name === 'AbortError') {
       console.log('[Chat] 请求被中断')
       await saveAssistantMessage()
+      if (!fullContent && !fullReasoning) await rollbackIfFirstRoundFailure(conversationId)
       return
     }
 
     console.error('聊天请求失败:', error)
     // 先落库已生成的部分内容（与用户中断的行为一致），避免界面重载后丢失
     await saveAssistantMessage()
+    // 首轮就报错：回滚用户消息与会话，不进历史记录
+    const rolledBack = await rollbackIfFirstRoundFailure(conversationId)
     if (!res.headersSent) {
-      return res.status(502).json({ error: error.message || 'AI 服务请求失败' })
+      return res.status(502).json({ error: error.message || 'AI 服务请求失败', rolledBack })
     }
     writeEvent(res, {
       id: aiMsgId,
       content: `请求失败: ${error.message}`,
       done: true,
-      error: true
+      error: true,
+      rolledBack
     })
     if (!res.writableEnded) res.end()
   }

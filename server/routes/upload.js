@@ -24,6 +24,17 @@ const ALLOWED_EXT = new Set([
   '.doc', '.docx', '.xls', '.xlsx'
 ])
 
+// multer 把 multipart 的 filename 按 latin1 解码，中文等非 ASCII 文件名会变乱码，
+// 这里还原为原始 UTF-8
+function fixFilename(name) {
+  if (!name || !/[\u0080-\u00FF]/.test(name)) return name
+  try {
+    return Buffer.from(name, 'latin1').toString('utf8')
+  } catch (e) {
+    return name
+  }
+}
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     if (!fs.existsSync(UPLOAD_DIR)) {
@@ -97,7 +108,7 @@ router.post('/', (req, res) => {
 
     const uploadedFiles = req.files.map(file => ({
       id: uuidv4(),
-      name: file.originalname.slice(0, 200),
+      name: fixFilename(file.originalname).slice(0, 200),
       url: '/uploads/' + file.filename,
       size: file.size,
       type: file.mimetype

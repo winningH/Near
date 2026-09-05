@@ -94,28 +94,13 @@
       </div>
     </div>
 
-    <div v-if="error" class="py-3 animate-fade-in">
-      <div class="max-w-3xl mx-auto flex gap-2.5">
-        <div
-          class="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-semibold text-white bg-red-500">
-          !
-        </div>
-        <div
-          class="max-w-[calc(100%-56px)] min-w-0">
-          <div
-            class="text-[11px] mb-1 pl-0.5 dark:text-[#6a6a8e] text-slate-400 flex items-center gap-2">
-            <span>错误</span>
-            <button
-              class="dark:text-[#6a6a8e] text-slate-400 hover:text-red-500 transition-colors"
-              title="关闭"
-              @click="$emit('dismiss-error')">×</button>
-          </div>
-          <div
-            class="message-content inline-block px-4 py-2.5 rounded-[18px_18px_18px_2px] bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-[14.5px] leading-relaxed text-red-700 dark:text-red-300">
-            {{ error }}
-          </div>
-        </div>
-      </div>
+    <!-- 错误紧跟在最后一条消息之后（即回复本该出现的位置），参考 DeepSeek 的失败样式 -->
+    <div v-if="error" class="max-w-3xl mx-auto">
+      <ErrorBanner
+        :error="error"
+        :can-retry="canRetry"
+        @retry="$emit('retry')"
+        @dismiss="$emit('dismiss-error')" />
     </div>
   </div>
 </template>
@@ -123,16 +108,20 @@
 <script>
   import { formatFileSize, safeUrl, toggleHeight } from '../../utils/helpers';
   import { buildThinkingAndContent, highlightCode, escapeHtml } from '../../utils/markdown';
+  import ErrorBanner from './ErrorBanner';
 
   export default {
     name: 'MessageList',
+
+    components: { ErrorBanner },
 
     props: {
       messages: { type: Array, default: () => [] },
       isStreaming: { type: Boolean, default: false },
       streamingContent: { type: String, default: '' },
       streamingReasoning: { type: String, default: '' },
-      error: { type: String, default: null }
+      error: { type: String, default: null },
+      canRetry: { type: Boolean, default: false }
     },
 
     data() {
