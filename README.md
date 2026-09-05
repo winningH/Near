@@ -1,8 +1,8 @@
 # Near - AI 智能助手
 
-基于 Vue 2 + Express 构建的 AI 对话应用，支持流式响应、文件上传、深度思考模式，以及暗黑/明亮主题切换。
+基于 Vue 2 + Express 构建的自托管 AI 对话应用，支持流式响应、文件上传、深度思考模式与明暗主题切换。
+后端对接**任意 OpenAI 兼容接口**（OpenAI、DeepSeek、Moonshot、本地 Ollama/vLLM 等），换服务商只需改三行环境变量。
 
-![Near AI Assistant](https://img.shields.io/badge/Near-AI%20Assistant-6c63ff)
 ![Vue.js](https://img.shields.io/badge/Vue-2.7-4fc08d?logo=vue.js)
 ![Express](https://img.shields.io/badge/Express-4.18-000000?logo=express)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-06b6d4?logo=tailwindcss)
@@ -11,289 +11,242 @@
 ## ✨ 功能特性
 
 ### 核心功能
-- **🤖 AI 对话** - 基于 LongCat API 的流式对话，支持实时响应
-- **🧠 深度思考模式** - 切换至思考模型，获得更深入的分析
-- **📎 文件上传** - 支持图片、PDF、文档等多种格式附件
-- **📋 对话历史** - 自动保存对话记录，支持搜索和管理
-- **🔄 上下文记忆** - 自动携带最近 40 轮对话上下文
+- **🤖 OpenAI 兼容接口** - 任何 `/v1/chat/completions` 兼容服务都能接，含流式响应
+- **🧠 深度思考模式** - 切换到推理模型，思考过程可折叠展示（需配置 `OPENAI_THINKING_MODEL`）
+- **📎 文件上传** - 图片送入多模态模型；文本类附件读取正文；其余格式仅记录文件名
+- **📋 对话历史** - 自动保存，支持重命名、删除与右键菜单
+- **🔄 上下文记忆** - 自动携带最近 40 条消息
 
 ### 交互体验
-- **🌓 主题切换** - 支持暗黑/明亮模式，可跟随系统或手动设置
-- **📱 响应式设计** - 侧边栏可折叠，适配不同屏幕尺寸
-- **⌨️ 快捷操作** - 支持 Enter 发送、Shift+Enter 换行
-- **🖼️ 文件粘贴** - 直接粘贴文件进行发送
-- **✏️ 对话管理** - 右键菜单支持重命名、删除对话
+- **🌓 主题切换** - 明暗模式，首次访问跟随系统，手动切换后以选择为准（含代码高亮配色）
+- **⌨️ 快捷操作** - Enter 发送、Shift+Enter 换行
+- **🖼️ 文件粘贴** - 直接粘贴图片或文件发送
+- **⏹ 中断生成** - 生成中可随时停止，已生成的部分内容会保留到会话中
 
 ### 消息展示
-- **🎨 Markdown 渲染** - 支持代码高亮、表格、列表等格式
+- **🎨 Markdown 渲染** - 代码高亮、表格、列表；内联 HTML 一律转义显示
 - **💭 思考过程展示** - 可折叠的深度思考内容
 - **🔍 图片预览** - 点击消息中的图片查看大图
-- **📎 附件展示** - 图片缩略图、文件信息卡片
 
 ## 🚀 快速开始
 
 ### 环境要求
 - Node.js 18+
-- pnpm 或 npm
+- pnpm（推荐）或 npm
 
 ### 安装步骤
 
-1. **克隆项目**
-```bash
-git clone <repository-url>
-cd Near
-```
-
-2. **安装依赖**
+1. 安装依赖
 ```bash
 pnpm install
 ```
 
-3. **配置环境变量**
+2. 配置环境变量
 ```bash
 cp .env.example .env
 ```
 
-编辑 `.env` 文件，填入你的 API 密钥：
+编辑 `.env`，填入你的接口信息：
 ```env
-# 数据库配置
-DATABASE_URL="file:./prisma/dev.db"
-
-# LongCat AI 配置（必填）
-LONGCAT_API_BASE=https://api.longcat.chat/openai
-LONGCAT_API_KEY=your_api_key_here
-LONGCAT_MODEL=LongCat-Flash-Chat
-LONGCAT_THINKING_MODEL=LongCat-Flash-Thinking-2601
+OPENAI_API_KEY=your_api_key_here
+OPENAI_API_BASE=https://api.openai.com/v1
+OPENAI_MODEL=gpt-4o-mini
 ```
 
-4. **初始化数据库**
+3. 初始化数据库
 ```bash
 pnpm run db:push
 ```
 
-5. **启动开发服务器**
+4. 启动开发服务器（前端 + 后端）
 ```bash
 pnpm run dev
 ```
 
-访问 http://localhost:3002 即可使用。
+前端访问 http://localhost:3000，后端运行在 http://localhost:3001。
+
+## 🔌 接入其他模型服务
+
+只要服务商提供 OpenAI 兼容的 `/v1/chat/completions` 接口，改这三行即可（以下地址以各服务商最新文档为准）：
+
+| 服务商 | OPENAI_API_BASE | OPENAI_MODEL 示例 |
+|--------|-----------------|-------------------|
+| OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini` |
+| DeepSeek | `https://api.deepseek.com/v1` | `deepseek-chat` |
+| Moonshot | `https://api.moonshot.cn/v1` | `moonshot-v1-8k` |
+| 本地 Ollama | `http://localhost:11434/v1` | `qwen2.5:7b` |
+
+说明：
+- `OPENAI_API_BASE` 末尾写不写 `/v1` 都可以，程序会自动补全。
+- 思考字段同时兼容 `reasoning_content` 与 `reasoning`。
+- 若模型不支持图片理解，把 `ENABLE_VISION` 设为 `false`，图片将退化为文件名提示。
+- 可调用的模型由服务端白名单控制（只能是 `OPENAI_MODEL` 或 `OPENAI_THINKING_MODEL`），客户端无法指定任意模型。
+
+## ⚙️ 配置说明
+
+| 变量名 | 必填 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `OPENAI_API_KEY` | **是** | - | 接口密钥 |
+| `OPENAI_API_BASE` | 否 | `https://api.openai.com/v1` | 接口地址，自动补 `/v1` |
+| `OPENAI_MODEL` | 否 | `gpt-4o-mini` | 默认对话模型 |
+| `OPENAI_THINKING_MODEL` | 否 | 空 | 深度思考模型，留空则关闭该功能 |
+| `OPENAI_THINKING_PARAMS` | 否 | 空 | 思考模式的额外请求参数，JSON 字符串，例如 `{"enable_thinking":true}` |
+| `OPENAI_TEMPERATURE` | 否 | `0.7` | 采样温度 |
+| `DATABASE_URL` | 否 | `file:./dev.db` | SQLite 路径，相对于 `prisma/` 目录 |
+| `PORT` | 否 | `3001` | 后端端口 |
+| `CLIENT_PORT` | 否 | `3000` | 前端开发服务器端口 |
+| `CORS_ORIGIN` | 否 | 空 | 允许的前端来源，逗号分隔；留空则允许所有 |
+| `ENABLE_VISION` | 否 | `true` | 是否以 base64 把图片送入多模态模型 |
+| `CHAT_RATE_LIMIT` | 否 | `30` | 每 IP 每分钟聊天请求上限 |
+| `UPLOAD_RATE_LIMIT` | 否 | `30` | 每 IP 每分钟上传请求上限 |
+| `MAX_CONTEXT_MESSAGES` | 否 | `40` | 携带的历史消息条数 |
+| `APP_NAME` | 否 | `Near` | 应用名称 |
+
+> 可通过 `OPENAI_THINKING_PARAMS`（JSON 对象）覆盖部分服务商独有的思考参数，例如 `{"enable_thinking":true}` 或 `{"reasoning_effort":"high"}`。
+
+### 文件上传限制
+- 单文件最大 10MB，单次最多 10 个
+- 白名单：png / jpg / jpeg / gif / webp / bmp / pdf / txt / md / csv / json / doc / docx / xls / xlsx
+- 超过 5MB 的图片不做 base64 内联，避免请求体过大
 
 ## 📁 项目结构
 
 ```
 Near/
-├── src/                    # Vue 前端源码
-│   ├── components/        # Vue 组件
-│   │   └── ChatPanel/    # 聊天面板组件
-│   │       ├── index.vue         # 主组件（纯 UI）
-│   │       ├── ChatInput.vue     # 输入框组件
-│   │       ├── MessageList.vue   # 消息列表组件
-│   │       ├── Sidebar.vue       # 侧边栏组件
-│   │       ├── WelcomeScreen.vue # 欢迎页组件
-│   │       └── ThemeToggle.vue   # 主题切换组件
-│   ├── api/              # API 调用封装
-│   ├── utils/            # 工具函数
-│   │   ├── helpers.js    # 辅助函数
-│   │   └── markdown.js   # Markdown 渲染
-│   ├── styles/           # 全局样式
-│   ├── App.vue           # 根组件（业务逻辑）
-│   └── main.js           # 入口文件
-├── server/               # Express 后端
-│   ├── index.js          # 服务器入口
-│   ├── prisma.js         # Prisma 客户端配置
-│   ├── schema.prisma     # 数据库模型定义
-│   └── routes/           # API 路由
-│       ├── chat.js             # 流式聊天 API
-│       ├── conversations.js     # 对话管理 API
-│       ├── conversationDetail.js# 对话详情 API
-│       └── upload.js            # 文件上传 API
+├── src/                          # Vue 前端源码
+│   ├── components/ChatPanel/    # 聊天面板组件（纯 UI）
+│   │   ├── index.vue            # 布局容器
+│   │   ├── Sidebar.vue          # 会话列表
+│   │   ├── MessageList.vue      # 消息列表与流式渲染
+│   │   ├── ChatInput.vue        # 输入框与附件
+│   │   ├── Drawer.vue           # 设置与关于
+│   │   ├── WelcomeScreen.vue    # 欢迎页
+│   │   └── ThemeToggle.vue      # 主题切换
+│   ├── api/                     # 接口封装
+│   ├── utils/                   # helpers / markdown 渲染
+│   ├── styles/                  # 全局样式
+│   ├── App.vue                  # 业务逻辑层
+│   └── main.js
+├── server/                       # Express 后端
+│   ├── index.js                 # 入口（CORS / 限流 / 静态服务 / 优雅退出）
+│   ├── config.js                # 环境变量集中管理
+│   ├── prisma.js                # Prisma 客户端
+│   ├── middleware/rateLimit.js  # 内存限流
+│   └── routes/                  # chat / conversations / conversationDetail / upload / config
 ├── prisma/
-│   ├── schema.prisma     # Prisma 主 schema
-│   └── migrations/       # 数据库迁移文件
+│   ├── schema.prisma            # 唯一数据模型定义
+│   ├── migrations/
+│   └── dev.db                   # SQLite 数据库（gitignore）
 ├── public/
-│   └── index.html        # HTML 入口
-├── vue.config.js         # Vue CLI 配置
-├── tailwind.config.js    # Tailwind 配置
-└── package.json          # 项目依赖
+│   ├── index.html
+│   └── uploads/                 # 上传文件（gitignore）
+├── .env.example
+└── vue.config.js
 ```
 
-## 🛠️ 技术栈
+## 📦 依赖组织
 
-### 前端
-- **Vue 2.7** - 渐进式 JavaScript 框架
-- **Vue CLI 5** - 项目脚手架工具
-- **Tailwind CSS 3.4** - 原子化 CSS 框架
-- **marked 4.3** - Markdown 解析
-- **highlight.js 11.9** - 代码语法高亮
+前后端**共用一份 `package.json` 和一个 `node_modules`**，这是刻意的，不是遗留问题。
 
-### 后端
-- **Express 4.18** - Web 应用框架
-- **Prisma 5.22** - ORM 数据库工具
-- **SQLite** - 轻量级数据库
-- **Multer** - 文件上传处理
-- **CORS** - 跨域资源共享
+原因是这个项目的部署形态本来就是一体的：后端 `express.static(dist)` 直接托管前端构建产物，一条 `pnpm run dev` 同时拉起两边。拆成 monorepo 会凭空引入 workspace 协议、跨包构建顺序、两套安装步骤，而换来的收益接近于零。
 
-### AI 服务
-- **LongCat API** - 大语言模型服务
+依赖归属如下：
 
-## 🏗️ 架构设计
+| 归属 | 包 |
+|------|-----|
+| 后端运行期 | `express` `multer` `dotenv` `@prisma/client` `uuid` |
+| 前端（构建期，产物进 `dist/`） | `vue` `marked` `highlight.js` |
+| 前端工具链 | `@vue/cli-service` `vue-template-compiler` `tailwindcss` `postcss` `autoprefixer` |
+| 后端 CLI | `prisma` |
+| 开发工具 | `concurrently` |
 
-### 组件分离原则
-- **ChatPanel 组件**: 纯 UI 展示层，只接收 props 和触发事件
-- **App.vue**: 业务逻辑层，负责数据管理和 API 调用
-- **API 层**: 封装所有后端接口调用
-- **Server 层**: Express RESTful API + SSE 流式响应
+### 已知代价
 
-### 数据流向
-```
-用户操作 → App.vue (业务逻辑) → ChatPanel (UI更新) → API调用 → Express Server → Database/AI API
-```
+- 生产部署时 `vue` / `marked` / `highlight.js` 会跟着装上，但它们已经打包进 `dist/`，服务端运行时并不需要（约 1–2MB，影响很小）。
+- 前端工具链（webpack 系，数百个传递依赖）和后端运行时共享 `node_modules`，任何一个出 CVE 都会算进生产依赖里。`pnpm audit` 时留意一下产物归属即可。
+- `pnpm install` 无法只装一半，CI 里无法跳过前端工具链。
 
-## 📝 使用说明
+### 什么时候该拆
 
-### 开始对话
-1. 点击"新的对话"或直接在输入框输入消息
-2. 支持粘贴或点击上传文件
-3. 按 Enter 发送，Shift+Enter 换行
+出现下面任一情况时，再考虑拆成 pnpm workspace（`apps/web` + `apps/server`）：
 
-### 深度思考模式
-- 点击输入框下方的"深度思考"按钮
-- 启用后会使用思考模型进行推理
-- 思考过程会显示在回答上方，可折叠
+- 后端需要单独容器化部署，或前端要上 CDN / 静态托管
+- 前后端有了独立的发布节奏或团队
+- 出现真实的依赖版本冲突（例如某个后端包和 webpack 工具链需要同一包的不同大版本）
+- 后端依赖明显膨胀（加 Redis、队列、认证等），前端工具链又很重
 
-### 主题切换
-- 点击侧边栏顶部的太阳/月亮图标
-- 支持跟随系统自动切换
+真要拆的话，`uuid` 需要两边各装一份（前端用 `src/utils/helpers.js` 里的 `generateId()`，不依赖 uuid 包），`prisma/` 目录和 `public/uploads` 的归属也要重新规划。
 
-### 对话管理
-- 右键点击对话项打开菜单
-- 支持重命名、删除对话
-- 点击对话项切换历史记录
+## 🗄️ 数据库模型
+
+- **Conversation** - `id` / `title` / `createdAt` / `updatedAt`
+- **Message** - `id` / `role` / `content` / `reasoning_content` / `timestamp` / `conversation_id`
+- **Attachment** - `id` / `name` / `url` / `size` / `type` / `message_id`
+
+删除会话会级联删除其消息与附件。
+
+## 🔌 API 接口
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/config` | 返回模型、接口地址、是否已配置 Key（不含密钥） |
+| POST | `/api/chat` | 发送消息，SSE 流式响应 |
+| GET | `/api/conversations` | 会话列表 |
+| POST | `/api/conversations` | 新建会话 |
+| GET | `/api/conversations/:id` | 会话详情（含消息与附件） |
+| PATCH | `/api/conversations/:id` | 重命名 |
+| DELETE | `/api/conversations/:id` | 删除 |
+| POST | `/api/upload` | 上传文件 |
+
+SSE 事件体：`{ id, content, reasoning_content, done, error? }`。
 
 ## 🔧 开发命令
 
 ```bash
-# 安装依赖
-pnpm install
-
-# 启动开发服务器（前端 + 后端）
-pnpm run dev
-
-# 仅启动前端
-pnpm run serve
-
-# 仅启动后端
-pnpm run server
-
-# 构建生产版本
-pnpm run build
-
-# 初始化数据库
-pnpm run db:push
-
-# 重新生成 Prisma Client
-pnpm run db:generate
+pnpm install          # 安装依赖
+pnpm run dev          # 前后端同时启动
+pnpm run serve        # 仅前端（3000）
+pnpm run server       # 仅后端（3001）
+pnpm run build        # 构建前端到 dist/
+pnpm run db:push      # 同步数据库结构
+pnpm run db:generate  # 重新生成 Prisma Client
+pnpm run db:migrate   # 创建迁移文件
+pnpm run db:studio    # 打开 Prisma Studio
 ```
 
-## 🗄️ 数据库模型
+## 🚀 部署
 
-### Conversation（对话）
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | String | 唯一标识 (UUID) |
-| title | String | 对话标题 |
-| createdAt | DateTime | 创建时间 |
-| updatedAt | DateTime | 更新时间 |
-| messages | Message[] | 关联消息 |
-
-### Message（消息）
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | String | 唯一标识 (UUID) |
-| role | String | 角色（user/assistant）|
-| content | String | 消息内容 |
-| reasoningContent | String? | 思考内容 |
-| timestamp | DateTime | 时间戳 |
-| conversationId | String | 所属对话 |
-| attachments | Attachment[] | 关联附件 |
-
-### Attachment（附件）
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | String | 唯一标识 (UUID) |
-| name | String | 文件名 |
-| url | String | 文件路径 |
-| size | Int | 文件大小 |
-| type | String | MIME 类型 |
-| messageId | String | 所属消息 |
-
-## ⚙️ 配置说明
-
-### 环境变量
-
-| 变量名 | 必填 | 默认值 | 说明 |
-|--------|------|--------|------|
-| DATABASE_URL | 否 | file:./prisma/dev.db | 数据库连接地址 |
-| LONGCAT_API_BASE | 否 | https://api.longcat.chat/openai | AI API 基础地址 |
-| LONGCAT_API_KEY | **是** | - | API 密钥 |
-| LONGCAT_MODEL | 否 | LongCat-Flash-Chat | 默认模型 |
-| LONGCAT_THINKING_MODEL | 否 | LongCat-Flash-Thinking-2601 | 思考模型 |
-
-### 端口配置
-- **前端开发服务器**: http://localhost:3002
-- **后端 API 服务器**: http://localhost:3001
-- **代理配置**: `/api` 和 `/uploads` 请求自动代理到后端
-
-### 文件上传限制
-- 最大文件大小：10MB
-- 支持格式：图片、PDF、Word、TXT、CSV、Excel、JSON、Markdown
-
-## 🔌 API 接口
-
-### 对话管理
-- `GET /api/conversations` - 获取对话列表
-- `POST /api/conversations` - 创建新对话
-- `GET /api/conversations/:id` - 获取对话详情
-- `PATCH /api/conversations/:id` - 重命名对话
-- `DELETE /api/conversations/:id` - 删除对话
-
-### 聊天功能
-- `POST /api/chat` - 发送消息（SSE 流式响应）
-
-### 文件上传
-- `POST /api/upload` - 上传文件
-
-## 🚀 部署指南
-
-### 生产环境构建
 ```bash
-# 构建前端
-pnpm run build
-
-# 启动生产服务器
-NODE_ENV=production node server/index.js
+pnpm install
+pnpm run db:push      # 或 pnpm run db:migrate
+pnpm run build        # 产出 dist/
+NODE_ENV=production PORT=3001 node server/index.js
 ```
 
-### 环境变量检查
-确保在生产环境中设置以下必填变量：
-- `LONGCAT_API_KEY`
-- `DATABASE_URL`
+`dist/` 存在时，后端会同时提供前端静态文件与 SPA 回退，访问 http://localhost:3001 即可使用完整应用。
 
-## 🤝 贡献指南
+生产环境建议：
+- 设置 `CORS_ORIGIN` 为实际前端域名，不要留空
+- 用 Nginx / Caddy 做 HTTPS 与反向代理
+- 定期备份 `prisma/dev.db` 与 `public/uploads`
 
-欢迎提交 Issue 和 Pull Request！
+## 🛡️ 安全说明
 
-### 开发流程
-1. Fork 本仓库
-2. 创建特性分支 (`git checkout -b feature/amazing-feature`)
-3. 提交更改 (`git commit -m 'Add some amazing feature'`)
-4. 推送到分支 (`git push origin feature/amazing-feature`)
-5. 开启 Pull Request
+- API Key 只保存在服务端 `.env`，`/api/config` 仅返回是否已配置
+- 聊天与上传接口按 IP 限流，可拒绝未配置的来源
+- 上传文件校验 MIME 与扩展名白名单，存储时重命名为 UUID
+- 消息中的内联 HTML 全部转义，避免 XSS
+
+## ❓ 常见问题
+
+**Prisma 报 "did not initialize"** — 没生成 Client，执行 `pnpm run db:generate`。若用 pnpm 10+，确认 `pnpm-workspace.yaml` 中 prisma 相关的 `allowBuilds` 为 `true`。
+
+**数据库文件在哪** — `DATABASE_URL` 的相对路径基于 `prisma/` 目录，默认 `prisma/dev.db`。
+
+**深度思考按钮是灰的** — 未配置 `OPENAI_THINKING_MODEL`。
+
+**模型看不到图片** — 确认模型支持视觉能力，或把 `ENABLE_VISION` 设为 `false` 退化为文件名提示。
 
 ## 📄 开源协议
 
 [MIT License](LICENSE)
-
----
-
-Made with ❤️ by Near Team
