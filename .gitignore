@@ -34,3 +34,6 @@ npm-debug.log*
 # OS
 .DS_Store
 Thumbs.db
+
+# WorkBuddy agent 工作目录（记忆与任务数据，非项目源码）
+.workbuddy/
