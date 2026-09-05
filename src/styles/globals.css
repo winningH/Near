@@ -419,12 +419,6 @@ html:not(.dark) .lightbox-overlay { background: rgba(0, 0, 0, 0.75); }
 
 .animate-fade-in { animation: fadeIn 0.3s ease; }
 
-textarea {
-  field-sizing: content;
-  min-height: 24px;
-  max-height: 150px;
-}
-
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;

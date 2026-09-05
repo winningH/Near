@@ -1,11 +1,10 @@
 <template>
   <div class="px-8 pb-6 dark:bg-gradient-to-b dark:from-transparent dark:to-[#1a1a2e]/30 bg-gradient-to-b from-transparent to-white/50">
-    <div class="max-w-3xl mx-auto">
+    <div class="max-w-3xl mx-auto w-full">
       <div
         ref="inputContainer"
-        class="dark:bg-[#1e1e3a] bg-white dark:border-[#2a2a50] border-slate-200 border rounded-2xl p-3
-          transition-all focus-within:border-indigo-500 focus-within:ring-2
-          dark:focus-within:ring-[rgba(108,99,255,0.3)] focus-within:ring-indigo-500/20"
+        class="dark:bg-[#1e1e3a] bg-white dark:border-[#2a2a50] border-slate-200 border rounded-2xl px-3 pb-3 pt-2
+          transition-all"
         @click="focusTextarea"
         @paste="handlePaste"
       >
@@ -25,7 +24,8 @@
 
           <div
             ref="attachmentsContainer"
-            class="flex gap-2 overflow-x-auto scrollbar-hide px-7 pb-2 dark:border-b-[#2a2a50] border-b-slate-100 border-b"
+            class="flex gap-2 overflow-x-auto scrollbar-hide pt-1.5 pb-2 dark:border-b-[#2a2a50] border-b-slate-100 border-b"
+            :class="showScrollButtons ? 'px-7' : 'px-1'"
           >
             <div
               v-for="(att, index) in attachments"
@@ -36,10 +36,16 @@
               <div v-if="att.type && att.type.startsWith('image/')" class="relative">
                 <img :src="att.url" :alt="att.name" class="w-16 h-16 rounded-md object-cover" />
                 <button
-                  class="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white
-                    flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                  class="absolute -top-1.5 -right-1.5 w-[18px] h-[18px] rounded-full bg-red-500 text-white
+                    flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity
+                    hover:bg-red-600 shadow-sm"
+                  title="删除附件"
                   @click="removeAttachment(index)"
-                >×</button>
+                >
+                  <svg class="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
+                    <path d="M6 6l12 12M18 6L6 18" />
+                  </svg>
+                </button>
               </div>
               <template v-else>
                 <span>📄</span>
@@ -49,9 +55,14 @@
                 </div>
                 <button
                   class="ml-1 w-4 h-4 rounded-full dark:bg-[#1e1e3a] bg-slate-200 dark:text-[#6a6a8e] text-slate-400
-                    flex items-center justify-center text-xs hover:bg-red-500 hover:text-white transition-colors"
+                    flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors"
+                  title="删除附件"
                   @click="removeAttachment(index)"
-                >×</button>
+                >
+                  <svg class="w-2 h-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
+                    <path d="M6 6l12 12M18 6L6 18" />
+                  </svg>
+                </button>
               </template>
             </div>
           </div>
@@ -70,84 +81,88 @@
           </button>
         </div>
 
-        <div class="flex items-end gap-2">
-          <textarea
-            ref="textarea"
-            v-model="message"
-            :disabled="isStreaming"
-            placeholder="发送消息..."
-            rows="1"
-            class="flex-1 bg-transparent border-none outline-none resize-none py-2 px-1
-              text-[15px] leading-relaxed dark:text-[#e8e8f0] text-slate-800
-              dark:placeholder-[#6a6a8e] placeholder-slate-400
-              disabled:opacity-50"
-            style="min-height: 24px; max-height: 150px"
-            @keydown="handleKeyDown"
-            @input="handleInput"
-          />
+        <textarea
+          ref="textarea"
+          v-model="message"
+          :disabled="isStreaming"
+          placeholder="发送消息..."
+          rows="2"
+          class="block w-full bg-transparent border-none outline-none resize-none py-2 px-1
+            max-h-[150px]
+            text-[15px] leading-relaxed dark:text-[#e8e8f0] text-slate-800
+            dark:placeholder-[#6a6a8e] placeholder-slate-400
+            caret-indigo-600 dark:caret-[#a78bfa]
+            disabled:opacity-50"
+          @keydown="handleKeyDown"
+          @input="handleInput"
+        />
 
-          <button
-            :disabled="isUploading || isStreaming"
-            class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors
-              dark:text-[#6a6a8e] dark:hover:bg-[#252545] dark:hover:text-[#e8e8f0]
-              text-slate-400 hover:bg-slate-100 hover:text-slate-600
-              disabled:opacity-50"
-            title="添加图片或文件"
-            @click="$refs.fileInput.click()"
-          >
-            <svg v-if="isUploading" class="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-            </svg>
-            <svg v-else class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
-            </svg>
-          </button>
-          <input
-            ref="fileInput"
-            type="file"
-            multiple
-            accept="image/*,.pdf,.doc,.docx,.txt,.csv,.xlsx,.json,.md"
-            class="hidden"
-            @change="handleFileSelect"
-          />
+        <div class="grid grid-cols-[1fr_auto_1fr] items-center mt-1.5 px-1 gap-2">
+          <div class="justify-self-start">
+            <button
+              :disabled="!config.thinkingEnabled"
+              :class="[
+                thinkMode && config.thinkingEnabled
+                  ? 'dark:bg-[rgba(108,99,255,0.08)] dark:text-[#6c63ff] dark:border-[rgba(108,99,255,0.35)] bg-indigo-50 text-indigo-600 border-indigo-200'
+                  : 'dark:bg-transparent dark:text-[#a0a0c0] dark:border-[#2a2a50] dark:hover:bg-[#252545] bg-transparent text-slate-500 border-slate-200 hover:bg-slate-50',
+                !config.thinkingEnabled ? 'opacity-40 cursor-not-allowed' : ''
+              ]"
+              class="h-[26px] px-2.5 rounded-full text-xs transition-all border"
+              :title="config.thinkingEnabled
+                ? (thinkMode ? '关闭深度思考' : '开启深度思考')
+                : '服务端未配置思考模型（OPENAI_THINKING_MODEL）'"
+              @click="$emit('toggle-think')"
+            >深度思考</button>
+          </div>
 
-          <button
-            :disabled="!isStreaming && !hasContent"
-            :class="isStreaming
-              ? 'bg-red-500 hover:bg-red-600 text-white'
-              : hasContent
-                ? 'dark:bg-[#6c63ff] bg-indigo-500 text-white dark:hover:bg-[#7b73ff] hover:bg-indigo-600'
-                : 'dark:bg-[#252545] bg-slate-100 dark:text-[#6a6a8e] text-slate-400 cursor-not-allowed'"
-            class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 transition-all"
-            :title="isStreaming ? '中断生成' : '发送消息'"
-            @click="handleSend"
-          >
-            <svg v-if="isStreaming" class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="currentColor">
-              <rect x="6" y="6" width="12" height="12" rx="2" />
-            </svg>
-            <svg v-else class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
-            </svg>
-          </button>
-        </div>
+          <span class="text-[11px] dark:text-[#6a6a8e] text-slate-400 whitespace-nowrap">按 Enter 发送，Shift+Enter 换行</span>
 
-        <div class="flex items-center justify-between mt-1.5 px-1">
-          <button
-            :disabled="!config.thinkingEnabled"
-            :class="[
-              thinkMode && config.thinkingEnabled
-                ? 'dark:bg-[rgba(108,99,255,0.08)] dark:text-[#6c63ff] dark:border-[rgba(108,99,255,0.35)] bg-indigo-50 text-indigo-600 border-indigo-200'
-                : 'dark:bg-transparent dark:text-[#a0a0c0] dark:border-[#2a2a50] dark:hover:bg-[#252545] bg-transparent text-slate-500 border-slate-200 hover:bg-slate-50',
-              !config.thinkingEnabled ? 'opacity-40 cursor-not-allowed' : ''
-            ]"
-            class="h-[26px] px-2.5 rounded-full text-xs transition-all border"
-            :title="config.thinkingEnabled
-              ? (thinkMode ? '关闭深度思考' : '开启深度思考')
-              : '服务端未配置思考模型（OPENAI_THINKING_MODEL）'"
-            @click="$emit('toggle-think')"
-          >深度思考</button>
-          <span class="text-[11px] dark:text-[#6a6a8e] text-slate-400">按 Enter 发送，Shift+Enter 换行</span>
+          <div class="justify-self-end flex items-center gap-2">
+            <button
+              :disabled="isUploading || isStreaming"
+              class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors
+                dark:text-[#6a6a8e] dark:hover:bg-[#252545] dark:hover:text-[#e8e8f0]
+                text-slate-400 hover:bg-slate-100 hover:text-slate-600
+                disabled:opacity-50"
+              title="添加图片或文件"
+              @click="$refs.fileInput.click()"
+            >
+              <svg v-if="isUploading" class="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              <svg v-else class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
+              </svg>
+            </button>
+            <input
+              ref="fileInput"
+              type="file"
+              multiple
+              accept="image/*,.pdf,.doc,.docx,.txt,.csv,.xlsx,.json,.md"
+              class="hidden"
+              @change="handleFileSelect"
+            />
+
+            <button
+              :disabled="!isStreaming && !hasContent"
+              :class="isStreaming
+                ? 'bg-red-500 hover:bg-red-600 text-white'
+                : hasContent
+                  ? 'dark:bg-[#6c63ff] bg-indigo-500 text-white dark:hover:bg-[#7b73ff] hover:bg-indigo-600'
+                  : 'dark:bg-[#252545] bg-slate-100 dark:text-[#6a6a8e] text-slate-400 cursor-not-allowed'"
+              class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 transition-all"
+              :title="isStreaming ? '中断生成' : '发送消息'"
+              @click="handleSend"
+            >
+              <svg v-if="isStreaming" class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="6" y="6" width="12" height="12" rx="2" />
+              </svg>
+              <svg v-else class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -239,7 +254,10 @@ export default {
       this.attachments = []
 
       const textarea = this.$refs.textarea
-      if (textarea) textarea.style.height = 'auto'
+      if (textarea) {
+        textarea.style.height = 'auto'
+        textarea.style.overflowY = 'hidden'
+      }
     },
 
     handleKeyDown(e) {
@@ -253,6 +271,8 @@ export default {
       const target = e.target
       target.style.height = 'auto'
       target.style.height = Math.min(target.scrollHeight, 150) + 'px'
+      // 仅当内容超过最大高度时才允许滚动，避免空内容时出现垂直滚动条
+      target.style.overflowY = target.scrollHeight > 150 ? 'auto' : 'hidden'
     },
 
     async uploadFiles(files) {
@@ -319,3 +339,4 @@ export default {
   }
 }
 </script>
+
