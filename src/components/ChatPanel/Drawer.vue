@@ -1,6 +1,5 @@
 <template>
   <div>
-    <!-- 遮罩层 -->
     <transition name="drawer-fade">
       <div
         v-if="visible"
@@ -8,7 +7,6 @@
         @click="$emit('update:visible', false)" />
     </transition>
 
-    <!-- 抽屉 -->
     <transition name="drawer-slide">
       <div
         v-if="visible"
@@ -28,10 +26,11 @@
             </svg>
           </button>
         </div>
+
         <div class="flex-1 overflow-y-auto">
           <div
             v-for="(section, index) in sections"
-            :key="index"
+            :key="section.title"
             class="dark:border-b-[#2a2a50] border-b-slate-200 border-b">
             <div
               class="flex items-center justify-between px-4 py-3 cursor-pointer select-none
@@ -45,11 +44,13 @@
                 <path d="M6 9l6 6 6-6" />
               </svg>
             </div>
-            <div
-              ref="sectionBodies"
-              class="overflow-hidden">
+            <div class="drawer-section-body overflow-hidden">
               <div class="px-4 py-3 text-sm dark:text-[#a0a0c0] text-slate-600">
-                {{ section.content }}
+                <p
+                  v-for="(line, i) in section.lines"
+                  :key="i"
+                  :class="i > 0 ? 'mt-1.5' : ''"
+                  class="leading-relaxed break-words">{{ line }}</p>
               </div>
             </div>
           </div>
@@ -61,6 +62,7 @@
 
 <script>
 import { toggleHeight } from '../../utils/helpers';
+import { fetchConfig } from '../../api';
 
 export default {
   name: 'Drawer',
@@ -72,11 +74,36 @@ export default {
 
   data() {
     return {
+      loaded: false,
       sections: [
-        { title: '基本信息', content: '这里是基本信息的内容，用于展示用户的基本资料。', open: true },
-        { title: '使用统计', content: '对话总数：128 | 消息总数：1,024 | 使用天数：45', open: false },
-        { title: '偏好设置', content: '当前主题：暗色 | 语言：简体中文 | 模型：LongCat-Flash', open: false },
-        { title: '关于', content: 'Near 是一个 AI 聊天助手，致力于提供流畅的对话体验。版本：1.0.0', open: false }
+        {
+          title: '关于 Near',
+          open: true,
+          lines: [
+            '自托管的 AI 聊天助手，前后端一体部署。',
+            '版本 1.0.0'
+          ]
+        },
+        { title: '模型与接口', open: false, lines: ['加载中…'] },
+        {
+          title: '使用技巧',
+          open: false,
+          lines: [
+            'Enter 发送，Shift+Enter 换行',
+            '可直接粘贴图片或文件作为附件',
+            '点击「深度思考」切换到推理模型',
+            '右键会话项可重命名或删除'
+          ]
+        },
+        {
+          title: '数据存储',
+          open: false,
+          lines: [
+            '会话与消息保存在本地 SQLite：prisma/dev.db',
+            '上传的附件保存在 public/uploads',
+            'API Key 只保存在服务端 .env，不会下发给前端'
+          ]
+        }
       ]
     };
   },
@@ -85,21 +112,48 @@ export default {
     visible(val) {
       if (val) {
         this.$nextTick(() => this.initSectionHeights());
+        this.loadConfig();
       }
     }
   },
 
   methods: {
+    async loadConfig() {
+      if (this.loaded) return;
+      this.loaded = true;
+
+      try {
+        const c = await fetchConfig();
+        this.sections[1].lines = [
+          `接口状态：${c.configured ? '已配置 API Key' : '未配置 API Key'}`,
+          `接口地址：${c.apiBase || '未配置'}`,
+          `对话模型：${c.model || '未配置'}`,
+          `思考模型：${c.thinkingModel || '未配置（深度思考不可用）'}`,
+          `图片理解：${c.visionEnabled ? '已开启' : '已关闭'}`
+        ];
+      } catch (err) {
+        this.sections[1].lines = ['模型信息加载失败，请确认后端服务已启动'];
+      }
+
+      this.$nextTick(() => this.initSectionHeights());
+    },
+
+    // 用选择器代替 v-for + ref：Vue 2 下 ref 数组的顺序不保证
+    getBodies() {
+      return this.$el.querySelectorAll('.drawer-section-body');
+    },
+
     initSectionHeights() {
+      const bodies = this.getBodies();
       this.sections.forEach((s, i) => {
-        const el = this.$refs.sectionBodies?.[i];
+        const el = bodies[i];
         if (el) el.style.height = s.open ? '' : '0px';
       });
     },
 
     toggleSection(index) {
       const section = this.sections[index];
-      const el = this.$refs.sectionBodies?.[index];
+      const el = this.getBodies()[index];
       if (!el) return;
 
       section.open = !section.open;

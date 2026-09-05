@@ -2,10 +2,14 @@ import { marked } from 'marked'
 import hljs from 'highlight.js'
 
 // 让 marked 不解析内联 HTML，全部转义为纯文本显示
+// 注意：marked v4 的 renderer.html 收到的是字符串（v5+ 才改为 token 对象）
 marked.use({
   renderer: {
-    html(token) {
-      return token.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    html(text) {
+      return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
     }
   }
 })

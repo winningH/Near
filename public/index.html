@@ -5,8 +5,31 @@
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
   <title>Near AI 助手</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" media="(prefers-color-scheme: dark)">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css" media="(prefers-color-scheme: light)">
+  <script>
+    // 提前应用主题，避免首屏闪白/闪黑
+    (function () {
+      try {
+        var saved = localStorage.getItem('near-theme');
+        var dark = saved ? saved === 'dark'
+          : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (dark) document.documentElement.classList.add('dark');
+      } catch (e) {}
+    })();
+  </script>
+  <link id="hljs-dark" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" media="not all">
+  <link id="hljs-light" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css" media="all">
+  <script>
+    // 代码高亮配色跟随应用主题（而非系统主题）
+    (function () {
+      try {
+        var dark = document.documentElement.classList.contains('dark');
+        var d = document.getElementById('hljs-dark');
+        var l = document.getElementById('hljs-light');
+        if (d) d.media = dark ? 'all' : 'not all';
+        if (l) l.media = dark ? 'not all' : 'all';
+      } catch (e) {}
+    })();
+  </script>
 </head>
 <body>
   <div id="app"></div>

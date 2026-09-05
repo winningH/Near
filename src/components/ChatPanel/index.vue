@@ -21,17 +21,20 @@
         :is-streaming="isStreaming"
         :streaming-content="streamingContent"
         :streaming-reasoning="streamingReasoning"
-        :error="error" />
+        :error="error"
+        @dismiss-error="$emit('dismiss-error')" />
 
       <ChatInput
         :is-streaming="isStreaming"
         :think-mode="thinkMode"
+        :config="config"
         @send="onSend"
         @stop="$emit('stop')"
+        @notify="$emit('notify', $event)"
         @toggle-think="$emit('toggle-think')" />
     </main>
 
-    <Drawer :visible.sync="drawerOpen" title="测试抽屉" />
+    <Drawer :visible.sync="drawerOpen" title="设置与关于" />
   </div>
 </template>
 
@@ -56,7 +59,17 @@
       thinkMode: { type: Boolean, default: false },
       streamingContent: { type: String, default: '' },
       streamingReasoning: { type: String, default: '' },
-      error: { type: String, default: null }
+      error: { type: String, default: null },
+      config: {
+        type: Object,
+        default: () => ({
+          appName: 'Near',
+          model: '',
+          thinkingModel: null,
+          thinkingEnabled: false,
+          configured: false
+        })
+      }
     },
 
     data() {

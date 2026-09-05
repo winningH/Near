@@ -7,6 +7,7 @@
       :is-collapsed="isCollapsed"
       :is-streaming="isStreaming"
       :think-mode="thinkMode"
+      :config="runtimeConfig"
       :streaming-content="streamingContent"
       :streaming-reasoning="streamingReasoning"
       :error="error"
@@ -17,7 +18,9 @@
       @rename-conversation="handleRenameConversation"
       @send="handleSendMessage"
       @stop="handleStopStreaming"
-      @toggle-think="thinkMode = !thinkMode"
+      @toggle-think="handleToggleThink"
+      @dismiss-error="error = null"
+      @notify="error = $event"
       @quick-action="handleQuickAction" />
   </div>
 </template>
@@ -28,12 +31,11 @@
   import {
     fetchConversations,
     fetchConversation,
+    fetchConfig,
     renameConversation,
     deleteConversation,
     chatStream
   } from './api';
-
-  const THINKING_MODEL = 'LongCat-Flash-Thinking-2601';
 
   export default {
     name: 'App',
@@ -52,25 +54,67 @@
         streamingReasoning: '',
         isLoading: true,
         error: null,
-        abortController: null
+        abortController: null,
+        runtimeConfig: {
+          appName: 'Near',
+          model: '',
+          thinkingModel: null,
+          thinkingEnabled: false,
+          configured: false,
+          apiBase: ''
+        }
       };
     },
 
     mounted() {
-      this.loadConversations();
       this.initTheme();
+      this.loadConversations();
+      this.loadConfig();
+    },
+
+    beforeDestroy() {
+      if (this.mediaQuery && this.mediaQuery.removeEventListener) {
+        this.mediaQuery.removeEventListener('change', this.onSystemThemeChange);
+      }
     },
 
     methods: {
       initTheme() {
         const saved = localStorage.getItem('near-theme');
-        if (
-          saved === 'dark' ||
-          (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)
-        ) {
-          document.documentElement.classList.add('dark');
+        this.mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
+        if (saved === 'dark' || saved === 'light') {
+          this.applyTheme(saved === 'dark');
         } else {
-          document.documentElement.classList.remove('dark');
+          this.applyTheme(this.mediaQuery.matches);
+          if (this.mediaQuery.addEventListener) {
+            this.mediaQuery.addEventListener('change', this.onSystemThemeChange);
+          }
+        }
+      },
+
+      applyTheme(isDark) {
+        document.documentElement.classList.toggle('dark', isDark);
+
+        // 代码高亮配色跟随应用主题
+        const darkLink = document.getElementById('hljs-dark');
+        const lightLink = document.getElementById('hljs-light');
+        if (darkLink) darkLink.media = isDark ? 'all' : 'not all';
+        if (lightLink) lightLink.media = isDark ? 'not all' : 'all';
+      },
+
+      onSystemThemeChange(e) {
+        this.applyTheme(e.matches);
+      },
+
+      async loadConfig() {
+        try {
+          this.runtimeConfig = await fetchConfig();
+          if (!this.runtimeConfig.thinkingEnabled) {
+            this.thinkMode = false;
+          }
+        } catch (err) {
+          console.error('加载运行配置失败:', err);
         }
       },
 
@@ -94,13 +138,16 @@
       },
 
       handleSelectConversation(id) {
+        if (this.isStreaming) return;
         this.currentId = id;
+        this.error = null;
         this.loadMessages(id);
       },
 
       handleNewChat() {
         this.currentId = null;
         this.messages = [];
+        this.error = null;
       },
 
       async handleDeleteConversation(id) {
@@ -113,6 +160,7 @@
           }
         } catch (err) {
           console.error('删除对话失败:', err);
+          this.error = '删除对话失败，请重试';
         }
       },
 
@@ -126,9 +174,18 @@
         }
       },
 
-      async handleSendMessage(content, attachments) {
-        let conversationId = this.currentId;
+      handleToggleThink() {
+        if (!this.runtimeConfig.thinkingEnabled) {
+          this.error = '当前未在服务端配置思考模型（OPENAI_THINKING_MODEL），深度思考不可用';
+          return;
+        }
+        this.thinkMode = !this.thinkMode;
+      },
 
+      async handleSendMessage(content, attachments) {
+        if (this.isStreaming) return;
+
+        let conversationId = this.currentId;
         if (!conversationId) {
           conversationId = generateId();
           this.currentId = conversationId;
@@ -147,21 +204,34 @@
         this.isStreaming = true;
         this.streamingContent = '';
         this.streamingReasoning = '';
-
         this.abortController = new AbortController();
+
+        const model =
+          this.thinkMode && this.runtimeConfig.thinkingModel
+            ? this.runtimeConfig.thinkingModel
+            : undefined;
+
+        let completed = false;
 
         try {
           const res = await chatStream(
             conversationId,
             content,
             attachments,
-            this.thinkMode ? THINKING_MODEL : undefined,
+            model,
             this.abortController.signal
           );
 
           if (!res.ok) {
             const errorText = await res.text();
-            throw new Error('发送消息失败: ' + res.status + ' ' + errorText);
+            let message = '发送消息失败: ' + res.status;
+            try {
+              const parsed = JSON.parse(errorText);
+              if (parsed && parsed.error) message = parsed.error;
+            } catch (e) {
+              if (errorText) message += ' ' + errorText.slice(0, 200);
+            }
+            throw new Error(message);
           }
 
           const reader = res.body.getReader();
@@ -178,26 +248,27 @@
 
             for (const line of lines) {
               const trimmed = line.trim();
-              if (trimmed.startsWith('data: ')) {
-                try {
-                  const data = JSON.parse(trimmed.slice(6));
-                  if (data.content !== undefined) {
-                    this.streamingContent = data.content;
-                  }
-                  if (data.reasoning_content !== undefined) {
-                    this.streamingReasoning = data.reasoning_content;
-                  }
-                  if (data.done) {
-                    this.loadConversations();
-                    if (conversationId) {
-                      this.loadMessages(conversationId);
-                    }
-                  }
-                } catch (e) {
-                  console.warn('解析 SSE 数据失败:', e);
+              if (!trimmed.startsWith('data: ')) continue;
+              try {
+                const data = JSON.parse(trimmed.slice(6));
+                if (data.content !== undefined) this.streamingContent = data.content;
+                if (data.reasoning_content !== undefined) this.streamingReasoning = data.reasoning_content;
+                if (data.error) this.error = data.content || '生成失败';
+                if (data.done) {
+                  completed = true;
+                  await this.loadConversations();
+                  await this.loadMessages(conversationId);
                 }
+              } catch (e) {
+                console.warn('解析 SSE 数据失败:', e);
               }
             }
+          }
+
+          if (!completed) {
+            completed = true;
+            await this.loadConversations();
+            await this.loadMessages(conversationId);
           }
         } catch (err) {
           if (err.name === 'AbortError') {
@@ -211,6 +282,11 @@
           this.streamingContent = '';
           this.streamingReasoning = '';
           this.abortController = null;
+          // 异常或中断时也要同步一次，避免已落库的回复在界面上丢失
+          if (!completed) {
+            this.loadConversations();
+            this.loadMessages(conversationId);
+          }
         }
       },
 

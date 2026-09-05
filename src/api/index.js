@@ -1,5 +1,11 @@
 const API_BASE = '/api';
 
+export async function fetchConfig() {
+  const res = await fetch(`${API_BASE}/config`);
+  if (!res.ok) throw new Error('获取运行配置失败');
+  return res.json();
+}
+
 export async function fetchConversations() {
   const res = await fetch(`${API_BASE}/conversations`);
   if (!res.ok) throw new Error('获取对话列表失败');

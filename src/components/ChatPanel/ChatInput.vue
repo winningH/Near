@@ -134,11 +134,17 @@
 
         <div class="flex items-center justify-between mt-1.5 px-1">
           <button
-            :class="thinkMode
-              ? 'dark:bg-[rgba(108,99,255,0.08)] dark:text-[#6c63ff] dark:border-[rgba(108,99,255,0.35)] bg-indigo-50 text-indigo-600 border-indigo-200'
-              : 'dark:bg-transparent dark:text-[#a0a0c0] dark:border-[#2a2a50] dark:hover:bg-[#252545] bg-transparent text-slate-500 border-slate-200 hover:bg-slate-50'"
+            :disabled="!config.thinkingEnabled"
+            :class="[
+              thinkMode && config.thinkingEnabled
+                ? 'dark:bg-[rgba(108,99,255,0.08)] dark:text-[#6c63ff] dark:border-[rgba(108,99,255,0.35)] bg-indigo-50 text-indigo-600 border-indigo-200'
+                : 'dark:bg-transparent dark:text-[#a0a0c0] dark:border-[#2a2a50] dark:hover:bg-[#252545] bg-transparent text-slate-500 border-slate-200 hover:bg-slate-50',
+              !config.thinkingEnabled ? 'opacity-40 cursor-not-allowed' : ''
+            ]"
             class="h-[26px] px-2.5 rounded-full text-xs transition-all border"
-            :title="thinkMode ? '关闭深度思考' : '开启深度思考'"
+            :title="config.thinkingEnabled
+              ? (thinkMode ? '关闭深度思考' : '开启深度思考')
+              : '服务端未配置思考模型（OPENAI_THINKING_MODEL）'"
             @click="$emit('toggle-think')"
           >深度思考</button>
           <span class="text-[11px] dark:text-[#6a6a8e] text-slate-400">按 Enter 发送，Shift+Enter 换行</span>
@@ -150,14 +156,20 @@
 
 <script>
 import { formatFileSize } from '../../utils/helpers'
-import { uploadFiles } from '../../api'
+import { uploadFiles as uploadFilesApi } from '../../api'
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024
 
 export default {
   name: 'ChatInput',
 
   props: {
     isStreaming: { type: Boolean, default: false },
-    thinkMode: { type: Boolean, default: false }
+    thinkMode: { type: Boolean, default: false },
+    config: {
+      type: Object,
+      default: () => ({ thinkingEnabled: false, model: '' })
+    }
   },
 
   data() {
@@ -243,28 +255,39 @@ export default {
       target.style.height = Math.min(target.scrollHeight, 150) + 'px'
     },
 
-    async handleFileSelect(e) {
-      const files = e.target.files
-      if (!files || files.length === 0) return
-
+    async uploadFiles(files) {
       this.isUploading = true
       const formData = new FormData()
-      Array.from(files).forEach(file => formData.append('files', file))
+      files.forEach(file => formData.append('files', file))
 
       try {
-        const uploaded = await uploadFiles(formData)
+        const uploaded = await uploadFilesApi(formData)
         this.attachments = [...this.attachments, ...uploaded]
       } catch (err) {
         console.error('上传文件失败:', err)
-        alert('上传文件失败')
+        this.$emit('notify', '上传失败，请检查文件大小（≤10MB）与类型是否受支持')
       } finally {
         this.isUploading = false
-        this.$refs.fileInput.value = ''
+        if (this.$refs.fileInput) this.$refs.fileInput.value = ''
       }
     },
 
+    async handleFileSelect(e) {
+      const files = Array.from(e.target.files || [])
+      if (files.length === 0) return
+
+      const oversized = files.filter(f => f.size > MAX_FILE_SIZE)
+      if (oversized.length > 0) {
+        this.$emit('notify', `以下文件超过 10MB 限制：${oversized.map(f => f.name).join('、')}`)
+        if (this.$refs.fileInput) this.$refs.fileInput.value = ''
+        return
+      }
+
+      await this.uploadFiles(files)
+    },
+
     async handlePaste(e) {
-      const items = Array.from(e.clipboardData?.items || [])
+      const items = Array.from(e.clipboardData && e.clipboardData.items ? e.clipboardData.items : [])
       const files = []
 
       for (const item of items) {
@@ -277,20 +300,7 @@ export default {
       if (files.length === 0) return
 
       e.preventDefault()
-      this.isUploading = true
-
-      const formData = new FormData()
-      files.forEach(file => formData.append('files', file))
-
-      try {
-        const uploaded = await uploadFiles(formData)
-        this.attachments = [...this.attachments, ...uploaded]
-      } catch (err) {
-        console.error('粘贴文件上传失败:', err)
-        alert('粘贴文件失败')
-      } finally {
-        this.isUploading = false
-      }
+      await this.uploadFiles(files)
     },
 
     removeAttachment(index) {

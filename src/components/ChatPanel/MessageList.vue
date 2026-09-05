@@ -63,7 +63,6 @@
 
           <div
             v-if="msg.content"
-            ref="contentRefs"
             class="message-content block max-w-full px-4 py-2.5"
             :class="
               msg.role === 'user'
@@ -97,8 +96,16 @@
           class="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-semibold text-white bg-red-500">
           !
         </div>
-        <div class="max-w-[calc(100%-56px)] min-w-0">
-          <div class="text-[11px] mb-1 pl-0.5 dark:text-[#6a6a8e] text-slate-400">错误</div>
+        <div
+          class="max-w-[calc(100%-56px)] min-w-0">
+          <div
+            class="text-[11px] mb-1 pl-0.5 dark:text-[#6a6a8e] text-slate-400 flex items-center gap-2">
+            <span>错误</span>
+            <button
+              class="dark:text-[#6a6a8e] text-slate-400 hover:text-red-500 transition-colors"
+              title="关闭"
+              @click="$emit('dismiss-error')">×</button>
+          </div>
           <div
             class="message-content inline-block px-4 py-2.5 rounded-[18px_18px_18px_2px] bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-[14.5px] leading-relaxed text-red-700 dark:text-red-300">
             {{ error }}
@@ -151,6 +158,10 @@
       }
     },
 
+    created() {
+      this._lastHighlightAt = 0;
+    },
+
     methods: {
       formatFileSize,
       safeUrl,
@@ -167,18 +178,20 @@
         if (el) el.scrollTop = el.scrollHeight;
       },
 
+      // 用选择器代替 v-for + ref：Vue 2 下 v-if 会让 ref 数组顺序不可靠
       highlightAll() {
-        const refs = this.$refs.contentRefs;
-        if (refs) {
-          (Array.isArray(refs) ? refs : [refs]).forEach(el => {
-            if (el) highlightCode(el);
-          });
-        }
+        const nodes = this.$el.querySelectorAll('.message-content');
+        nodes.forEach(el => highlightCode(el));
       },
 
+      // 流式期间节流高亮，避免每个分片都重排整段 HTML
       highlightStreaming() {
         const el = this.$refs.streamingRef;
-        if (el && this.isStreaming) highlightCode(el);
+        if (!el || !this.isStreaming) return;
+        const now = Date.now();
+        if (now - this._lastHighlightAt < 200) return;
+        this._lastHighlightAt = now;
+        highlightCode(el);
       },
 
       handleContentClick(e) {
@@ -195,18 +208,27 @@
       },
 
       openLightbox(att) {
+        // 用 DOM API 构建，避免把文件名拼进 innerHTML 造成注入
         const overlay = document.createElement('div');
         overlay.className = 'lightbox-overlay';
         overlay.style.display = 'flex';
-        overlay.innerHTML =
-          '<img class="lightbox-img" src="' + safeUrl(att.url) + '" alt="' + att.name + '" />';
-        overlay.onclick = () => overlay.remove();
-        document.addEventListener('keydown', function esc(e) {
-          if (e.key === 'Escape') {
-            overlay.remove();
-            document.removeEventListener('keydown', esc);
-          }
-        });
+
+        const img = document.createElement('img');
+        img.className = 'lightbox-img';
+        img.src = safeUrl(att.url);
+        img.alt = att.name || '';
+        overlay.appendChild(img);
+
+        const close = () => {
+          overlay.remove();
+          document.removeEventListener('keydown', onKey);
+        };
+        function onKey(e) {
+          if (e.key === 'Escape') close();
+        }
+
+        overlay.onclick = close;
+        document.addEventListener('keydown', onKey);
         document.body.appendChild(overlay);
       }
     }
