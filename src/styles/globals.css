@@ -226,14 +226,14 @@ html:not(.dark) .hljs-constant { color: #986801; }
 }
 
 .message-content code {
-  padding: 1px 5px;
-  border-radius: 4px;
-  font-size: 13px;
+  padding: 2px 6px;
+  border-radius: 5px;
+  font-size: 0.9em;
   font-family: 'Fira Code', 'Consolas', monospace;
 }
 
 .message-content pre {
-  border-radius: 10px;
+  border-radius: 12px;
   margin: 10px 0;
   overflow: hidden;
   max-width: 100%;
@@ -278,8 +278,9 @@ html:not(.dark) .hljs-constant { color: #986801; }
   margin: 12px 0;
 }
 
+/* 暗色：正文近白，强调色收敛为中性（参考 ChatGPT/Claude 的排版用色） */
 .dark .message-content strong {
-  color: #c0c0ff;
+  color: #f2f3fb;
 }
 
 .dark .message-content em {
@@ -287,18 +288,19 @@ html:not(.dark) .hljs-constant { color: #986801; }
 }
 
 .dark .message-content blockquote {
-  border-color: #6c63ff;
-  background: rgba(108, 99, 255, 0.06);
-  color: #a0a0c0;
+  border-color: #3d3d62;
+  background: rgba(255, 255, 255, 0.03);
+  color: #a8adca;
 }
 
 .dark .message-content code {
-  background: #0d1117;
-  color: #e0b0ff;
+  background: rgba(151, 158, 193, 0.16);
+  color: #e3e6f5;
 }
 
 .dark .message-content pre {
   background: #0d1117;
+  border: 1px solid #262645;
 }
 
 .dark .message-content th,
@@ -311,7 +313,7 @@ html:not(.dark) .hljs-constant { color: #986801; }
 }
 
 .dark .message-content a {
-  color: #6c63ff;
+  color: #8b93ff;
 }
 
 .dark .message-content hr {
@@ -320,7 +322,7 @@ html:not(.dark) .hljs-constant { color: #986801; }
 
 .light .message-content strong,
 html:not(.dark) .message-content strong {
-  color: #4338ca;
+  color: #0f172a;
 }
 
 .light .message-content em,
@@ -330,20 +332,21 @@ html:not(.dark) .message-content em {
 
 .light .message-content blockquote,
 html:not(.dark) .message-content blockquote {
-  border-color: #6366f1;
-  background: rgba(99, 102, 241, 0.06);
-  color: #475569;
+  border-color: #cbd5e1;
+  background: rgba(148, 163, 184, 0.06);
+  color: #64748b;
 }
 
 .light .message-content code,
 html:not(.dark) .message-content code {
-  background: #f1f5f9;
-  color: #7c3aed;
+  background: #eef1f5;
+  color: #475569;
 }
 
 .light .message-content pre,
 html:not(.dark) .message-content pre {
-  background: #f1f5f9;
+  background: #f6f8fa;
+  border: 1px solid #e6eaf0;
 }
 
 .light .message-content th,
@@ -355,7 +358,7 @@ html:not(.dark) .message-content td {
 
 .light .message-content th,
 html:not(.dark) .message-content th {
-  background: #e2e8f0;
+  background: #f1f5f9;
 }
 
 .light .message-content a,

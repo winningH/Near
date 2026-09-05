@@ -5,26 +5,13 @@
     @click="handleContentClick"
     @scroll="handleScroll"
   >
-    <div v-for="msg in messages" :key="msg.id" class="py-3 animate-fade-in">
-      <div
-        class="max-w-3xl mx-auto flex gap-2.5"
-        :class="msg.role === 'user' ? 'flex-row-reverse' : ''"
-      >
-        <div
-          class="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-semibold text-white"
-          :class="
-            msg.role === 'user'
-              ? 'bg-gradient-to-br dark:from-[#6c63ff] dark:to-[#a78bfa] from-indigo-500 to-purple-500'
-              : 'bg-gradient-to-br dark:from-emerald-500 dark:to-emerald-400 from-emerald-500 to-teal-400'
-          "
-        >
-          {{ msg.role === 'user' ? 'U' : 'N' }}
-        </div>
-
-        <div
-          class="max-w-[calc(100%-56px)] min-w-0"
-          :class="msg.role === 'user' ? 'items-end flex flex-col' : ''"
-        >
+    <div
+      v-for="msg in messages"
+      :key="msg.id"
+      class="py-3 animate-fade-in"
+      :data-msg-id="msg.id"
+    >
+      <div class="max-w-3xl mx-auto" :class="msg.role === 'user' ? 'flex flex-col items-end' : ''">
           <div
             v-if="msg.attachments && msg.attachments.length > 0"
             class="flex flex-wrap gap-1.5 mb-2"
@@ -61,32 +48,24 @@
 
           <div
             v-if="msg.content"
-            class="message-content block max-w-full px-4 py-2.5"
+            class="message-content block max-w-full"
             :class="
               msg.role === 'user'
-                ? 'rounded-[18px_18px_2px_18px] bg-indigo-100 dark:bg-[#33335c] text-slate-800 dark:text-[#e8e8f0]'
-                : 'rounded-[18px_18px_18px_2px] dark:bg-[#16213e] bg-white dark:border-[#2a2a50] border-slate-200 border text-[14.5px] leading-relaxed dark:text-[#e8e8f0] text-slate-700'
+                ? 'rounded-[20px] bg-indigo-50 dark:bg-[#2e2e55] px-4 py-2.5 text-slate-800 dark:text-[#e8e8f0]'
+                : 'py-0.5 text-[14.5px] leading-relaxed text-slate-800 dark:text-[#e8e8f0]'
             "
             v-html="renderMessageContent(msg)"
           ></div>
-        </div>
       </div>
     </div>
 
     <div v-if="isStreaming" class="py-3 animate-fade-in">
-      <div class="max-w-3xl mx-auto flex gap-2.5">
+      <div class="max-w-3xl mx-auto">
         <div
-          class="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-semibold text-white bg-gradient-to-br dark:from-emerald-500 dark:to-emerald-400 from-emerald-500 to-teal-400"
-        >
-          N
-        </div>
-        <div class="max-w-[calc(100%-56px)] min-w-0 pt-1">
-          <div
-            ref="streamingRef"
-            class="message-content block max-w-full px-4 py-2.5 rounded-[18px_18px_18px_2px] dark:bg-[#16213e] bg-white dark:border-[#2a2a50] border-slate-200 border text-[14.5px] leading-relaxed dark:text-[#e8e8f0] text-slate-700"
-            v-html="streamingHtml"
-          ></div>
-        </div>
+          ref="streamingRef"
+          class="message-content block max-w-full py-0.5 text-[14.5px] leading-relaxed text-slate-800 dark:text-[#e8e8f0]"
+          v-html="streamingHtml"
+        ></div>
       </div>
     </div>
 
@@ -120,7 +99,9 @@
         // 用户是否贴在底部——用于决定是否跟随流式输出自动滚动
         userAtBottom: true,
         // 当前预览大图的附件，null 表示未打开
-        lightboxAtt: null
+        lightboxAtt: null,
+        // 已自动收起思考块的消息 id：每条消息只自动收一次，不跟用户手动展开打架
+        autoCollapsed: {}
       };
     },
 
@@ -144,19 +125,31 @@
 
     watch: {
       messages: {
+        // immediate：从欢迎页首次进入会话时组件是新挂载的，需要对初始消息就执行
+        // 高亮与思考块收起（watcher 默认不响应初始值）
         handler() {
           this.scrollToBottom();
-          this.$nextTick(() => this.highlightAll());
+          this.$nextTick(() => {
+            this.highlightAll();
+            this.collapseFinishedThinking();
+          });
         },
-        deep: true
+        deep: true,
+        immediate: true
       },
       streamingContent() {
         this.scrollToBottom();
-        this.$nextTick(() => this.highlightStreaming());
+        this.$nextTick(() => {
+          this.highlightStreaming();
+          this.autoCollapseStreamingThinking();
+        });
       },
       streamingReasoning() {
         this.scrollToBottom();
-        this.$nextTick(() => this.highlightStreaming());
+        this.$nextTick(() => {
+          this.highlightStreaming();
+          this.autoCollapseStreamingThinking();
+        });
       }
     },
 
@@ -178,6 +171,36 @@
           return escapeHtml(msg.content).replace(/\n/g, '<br>');
         }
         return buildThinkingAndContent(msg.reasoningContent, msg.content);
+      },
+
+      // 立即收起思考块（不带动画）：高度直接归零，避免每 token 重渲染时反复触发动画
+      collapseThinking(block) {
+        if (block.classList.contains('collapsed')) return;
+        block.classList.add('collapsed');
+        const body = block.querySelector('.thinking-body');
+        if (body) body.style.height = '0px';
+      },
+
+      // 流式期间：正文一旦出现，说明思考已全部输出，自动收起思考块
+      autoCollapseStreamingThinking() {
+        if (!this.streamingContent) return;
+        const el = this.$refs.streamingRef;
+        if (!el) return;
+        const block = el.querySelector('.thinking-block');
+        if (block) this.collapseThinking(block);
+      },
+
+      // 历史消息：思考与正文齐全的，说明思考已完整输出，默认收起
+      collapseFinishedThinking() {
+        this.$el.querySelectorAll('[data-msg-id]').forEach(wrapper => {
+          const id = wrapper.dataset.msgId;
+          if (!id || this.autoCollapsed[id]) return;
+          const block = wrapper.querySelector('.thinking-block');
+          // 只有思考后面跟着正文（思考已完整输出）才收起
+          if (!block || !wrapper.querySelector('.answer-content')) return;
+          this.autoCollapsed[id] = true;
+          this.collapseThinking(block);
+        });
       },
 
       scrollToBottom() {

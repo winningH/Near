@@ -1,5 +1,5 @@
 <template>
-  <div class="h-screen flex min-w-[768px] dark:bg-[#1a1a2e] bg-slate-50">
+  <div class="h-screen flex min-w-[660px] dark:bg-[#1a1a2e] bg-slate-50">
     <Sidebar
       :conversations="conversations"
       :current-id="currentId"
@@ -81,7 +81,6 @@
       canRetry: { type: Boolean, default: false },
       streamingContent: { type: String, default: '' },
       streamingReasoning: { type: String, default: '' },
-      error: { type: String, default: null },
       config: {
         type: Object,
         default: () => ({

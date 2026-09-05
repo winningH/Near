@@ -23,7 +23,8 @@
       @retry="handleRetry"
       :can-retry="!!lastFailed"
       @notify="error = $event"
-      @quick-action="handleQuickAction" />
+      @quick-action="handleQuickAction"
+    />
   </div>
 </template>
 
@@ -72,6 +73,7 @@
 
     mounted() {
       this.initTheme();
+      this.initSidebarAutoCollapse();
       this.loadConversations();
       this.loadConfig();
     },
@@ -80,9 +82,28 @@
       if (this.mediaQuery && this.mediaQuery.removeEventListener) {
         this.mediaQuery.removeEventListener('change', this.onSystemThemeChange);
       }
+      if (this.sidebarMq && this.sidebarMq.removeEventListener) {
+        this.sidebarMq.removeEventListener('change', this.onSidebarBreakpoint);
+      }
     },
 
     methods: {
+      // 窗口 <800px 自动折叠侧边栏，>800px 自动展开；
+      // <660px 时由布局最小宽度（ChatPanel 的 min-w）触发 #app 的横向滚动条
+      initSidebarAutoCollapse() {
+        this.sidebarMq = window.matchMedia('(max-width: 800px)');
+        this.isCollapsed = this.sidebarMq.matches;
+        if (this.sidebarMq.addEventListener) {
+          this.sidebarMq.addEventListener('change', this.onSidebarBreakpoint);
+        } else if (this.sidebarMq.addListener) {
+          this.sidebarMq.addListener(this.onSidebarBreakpoint);
+        }
+      },
+
+      onSidebarBreakpoint(e) {
+        this.isCollapsed = e.matches;
+      },
+
       initTheme() {
         const saved = localStorage.getItem('near-theme');
         this.mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -271,7 +292,8 @@
                   rolledBack = !!data.rolledBack;
                 } else {
                   if (data.content !== undefined) this.streamingContent = data.content;
-                  if (data.reasoning_content !== undefined) this.streamingReasoning = data.reasoning_content;
+                  if (data.reasoning_content !== undefined)
+                    this.streamingReasoning = data.reasoning_content;
                 }
                 if (data.done) {
                   completed = true;
@@ -340,3 +362,12 @@
     }
   };
 </script>
+
+<style scoped>
+  #app {
+    width: 100%;
+    height: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+</style>

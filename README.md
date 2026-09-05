@@ -251,6 +251,10 @@ NODE_ENV=production PORT=3001 node server/index.js
 
 **模型看不到图片** — 确认模型支持视觉能力，或把 `ENABLE_VISION` 设为 `false` 退化为文件名提示。
 
+## 📜 更新日志
+
+版本迭代记录见 [CHANGELOG.md](CHANGELOG.md)，与「关于 → 版本记录」保持一致。
+
 ## 📄 开源协议
 
 [MIT License](LICENSE)
