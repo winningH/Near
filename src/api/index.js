@@ -49,11 +49,11 @@ export async function uploadFiles(formData) {
   return res.json();
 }
 
-export function chatStream(conversationId, message, attachments, model, signal) {
+export function chatStream(conversationId, message, attachments, model, thinkMode, signal) {
   return fetch(`${API_BASE}/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ conversationId, message, attachments, model }),
+    body: JSON.stringify({ conversationId, message, attachments, model, thinkMode }),
     signal
   });
 }

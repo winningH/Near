@@ -75,7 +75,7 @@
             ref="textarea"
             v-model="message"
             :disabled="isStreaming"
-            placeholder="给 Near 发送消息..."
+            placeholder="发送消息..."
             rows="1"
             class="flex-1 bg-transparent border-none outline-none resize-none py-2 px-1
               text-[15px] leading-relaxed dark:text-[#e8e8f0] text-slate-800

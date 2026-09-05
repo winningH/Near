@@ -1,5 +1,9 @@
 <template>
-  <div ref="scrollContainer" class="flex-1 overflow-y-auto py-5" @click="handleContentClick">
+  <div
+    ref="scrollContainer"
+    class="flex-1 overflow-y-auto py-5"
+    @click="handleContentClick"
+    @scroll="handleScroll">
     <div v-for="msg in messages" :key="msg.id" class="py-3 animate-fade-in">
       <div
         class="max-w-3xl mx-auto flex gap-2.5"
@@ -131,6 +135,13 @@
       error: { type: String, default: null }
     },
 
+    data() {
+      return {
+        // 用户是否贴在底部——用于决定是否跟随流式输出自动滚动
+        userAtBottom: true
+      };
+    },
+
     computed: {
       streamingHtml() {
         if (this.streamingContent || this.streamingReasoning) {
@@ -162,6 +173,11 @@
       this._lastHighlightAt = 0;
     },
 
+    mounted() {
+      // 初次渲染完成时滚到底（userAtBottom 默认 true）
+      this.scrollToBottom();
+    },
+
     methods: {
       formatFileSize,
       safeUrl,
@@ -175,7 +191,23 @@
 
       scrollToBottom() {
         const el = this.$refs.scrollContainer;
-        if (el) el.scrollTop = el.scrollHeight;
+        if (!el) return;
+        // 再确认一次当前距离——避免 watcher 与用户滚动之间有时序差，
+        // 导致用户刚往上滚、我们又把他拽回去
+        const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+        if (distanceFromBottom > 50) {
+          this.userAtBottom = false;
+          return; // 用户已经向上滚动了，不抢
+        }
+        this.userAtBottom = true;
+        el.scrollTop = el.scrollHeight;
+      },
+
+      handleScroll() {
+        const el = this.$refs.scrollContainer;
+        if (!el) return;
+        // 距离底 50px 内算"贴底"——大概一条消息的高度，不会太敏感
+        this.userAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= 50;
       },
 
       // 用选择器代替 v-for + ref：Vue 2 下 v-if 会让 ref 数组顺序不可靠

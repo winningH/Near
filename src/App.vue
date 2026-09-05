@@ -219,6 +219,7 @@
             content,
             attachments,
             model,
+            this.thinkMode,
             this.abortController.signal
           );
 
