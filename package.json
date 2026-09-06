@@ -1,10 +1,11 @@
 {
-  "name": "near-ai-vue2",
-  "version": "1.5.0",
+  "name": "near-ai-vue3",
+  "version": "2.0.0",
   "private": true,
   "scripts": {
-    "serve": "vue-cli-service serve",
-    "build": "vue-cli-service build",
+    "serve": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
     "server": "node server/index.js",
     "dev": "concurrently \"pnpm run serve\" \"pnpm run server\"",
     "db:generate": "prisma generate",
@@ -16,7 +17,7 @@
     "node": ">=18"
   },
   "dependencies": {
-    "vue": "^2.7.16",
+    "vue": "^3.5.13",
     "marked": "^4.3.0",
     "highlight.js": "^11.9.0",
     "uuid": "^9.0.0",
@@ -26,8 +27,8 @@
     "@prisma/client": "^5.8.0"
   },
   "devDependencies": {
-    "@vue/cli-service": "^5.0.8",
-    "vue-template-compiler": "^2.7.16",
+    "vite": "^5.4.10",
+    "@vitejs/plugin-vue": "^5.2.0",
     "tailwindcss": "^3.4.1",
     "postcss": "^8.4.33",
     "autoprefixer": "^10.4.17",

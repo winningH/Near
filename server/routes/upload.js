@@ -5,6 +5,7 @@ const path = require('path')
 const fs = require('fs')
 const { v4: uuidv4 } = require('uuid')
 const config = require('../config')
+const { resolveUploadPath, currentMonthDir } = require('../uploadPath')
 
 const UPLOAD_DIR = config.upload.dir
 
@@ -37,10 +38,15 @@ function fixFilename(name) {
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    if (!fs.existsSync(UPLOAD_DIR)) {
-      fs.mkdirSync(UPLOAD_DIR, { recursive: true })
+    // 按月分目录存储（uploads/yyyyMM），目录不存在时递归创建
+    const monthDir = currentMonthDir()
+    try {
+      fs.mkdirSync(monthDir, { recursive: true })
+    } catch (e) {
+      return cb(e)
     }
-    cb(null, UPLOAD_DIR)
+    req.uploadMonth = path.basename(monthDir)
+    cb(null, monthDir)
   },
   filename: (req, file, cb) => {
     // 丢弃原始文件名，避免路径穿越与覆盖
@@ -67,17 +73,14 @@ const upload = multer({
   }
 })
 
-// 本服务的落盘文件名固定为 uuid（+可选扩展名），按此校验防止误删其他文件
-const FILENAME_RE = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}(\.[a-z0-9]+)?$/i
-
-// 删除待发送区附件时同步清理落盘文件；已发送消息的附件不经过这里
-router.delete('/:filename', (req, res) => {
-  const filename = path.basename(req.params.filename || '')
-  if (!FILENAME_RE.test(filename)) {
+// 删除待发送区附件时同步清理落盘文件；已发送消息的附件不经过这里。
+// 客户端传 /uploads/ 之后的相对路径（yyyyMM/uuid.ext 或旧文件的 uuid.ext）
+router.delete('/*', (req, res) => {
+  const filePath = resolveUploadPath('/uploads/' + (req.params[0] || ''))
+  if (!filePath) {
     return res.status(400).json({ error: '非法的文件名' })
   }
 
-  const filePath = path.join(UPLOAD_DIR, filename)
   if (!fs.existsSync(filePath)) {
     return res.status(404).json({ error: '文件不存在' })
   }
@@ -109,7 +112,7 @@ router.post('/', (req, res) => {
     const uploadedFiles = req.files.map(file => ({
       id: uuidv4(),
       name: fixFilename(file.originalname).slice(0, 200),
-      url: '/uploads/' + file.filename,
+      url: '/uploads/' + (req.uploadMonth ? req.uploadMonth + '/' : '') + file.filename,
       size: file.size,
       type: file.mimetype
     }))

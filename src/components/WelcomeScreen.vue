@@ -23,7 +23,7 @@
         你好，我是 Near
       </h1>
 
-      <p class="text-base dark:text-[#6a6a8e] text-slate-400 mb-10">
+      <p class="text-base dark:text-[#6e6e6e] text-slate-400 mb-10">
         你的 AI 智能助手，随时为你解答问题、提供帮助
       </p>
 
@@ -37,7 +37,7 @@
           <button
             v-for="action in quickActions"
             :key="action.text"
-            class="flex items-center gap-2.5 px-5 py-3.5 rounded-xl transition-all text-left dark:bg-[#16213e] dark:border-[#2a2a50] dark:border dark:text-[#a0a0c0] dark:hover:border-[#6c63ff] dark:hover:bg-[#252545] dark:hover:text-[#e8e8f0] bg-white border-slate-200 border text-slate-600 hover:border-indigo-500 hover:bg-slate-50 hover:text-slate-800 hover:-translate-y-0.5"
+            class="flex items-center gap-2.5 px-5 py-3.5 rounded-xl transition-all text-left dark:bg-[#222222] dark:border-[#2e2e2e] dark:border dark:text-[#a3a3a3] dark:hover:border-[#6c63ff] dark:hover:bg-[#262626] dark:hover:text-[#ececec] bg-white border-slate-200 border text-slate-600 hover:border-indigo-500 hover:bg-slate-50 hover:text-slate-800 hover:-translate-y-0.5"
             @click="selectAction(action)"
           >
             <span class="text-xl">{{ action.icon }}</span>
@@ -48,7 +48,7 @@
         <!-- 二级视图：建议词列表 -->
         <div v-else :key="selectedAction.text" class="max-w-[480px] mx-auto text-left">
           <button
-            class="flex items-center gap-1.5 mb-4 text-sm dark:text-[#6a6a8e] text-slate-400 dark:hover:text-[#a0a0c0] hover:text-slate-600 transition-colors"
+            class="flex items-center gap-1.5 mb-4 text-sm dark:text-[#6e6e6e] text-slate-400 dark:hover:text-[#a3a3a3] hover:text-slate-600 transition-colors"
             @click="back"
           >
             <svg
@@ -65,11 +65,11 @@
 
           <div class="flex items-center gap-2 mb-1">
             <span class="text-2xl">{{ selectedAction.icon }}</span>
-            <h2 class="text-xl font-semibold dark:text-[#e8e8f0] text-slate-800">
+            <h2 class="text-xl font-semibold dark:text-[#ececec] text-slate-800">
               {{ selectedAction.text }}
             </h2>
           </div>
-          <p class="text-sm mb-5 dark:text-[#6a6a8e] text-slate-400">
+          <p class="text-sm mb-5 dark:text-[#6e6e6e] text-slate-400">
             {{ selectedAction.desc }}
           </p>
 
@@ -77,7 +77,7 @@
             <button
               v-for="(prompt, idx) in selectedAction.prompts"
               :key="idx"
-              class="text-left px-4 py-3 rounded-xl text-sm transition-all dark:bg-[#16213e] dark:border-[#2a2a50] dark:border dark:text-[#a0a0c0] dark:hover:border-[#6c63ff] dark:hover:bg-[#252545] dark:hover:text-[#e8e8f0] bg-white border-slate-200 border text-slate-600 hover:border-indigo-500 hover:bg-slate-50 hover:text-slate-800"
+              class="text-left px-4 py-3 rounded-xl text-sm transition-all dark:bg-[#222222] dark:border-[#2e2e2e] dark:border dark:text-[#a3a3a3] dark:hover:border-[#6c63ff] dark:hover:bg-[#262626] dark:hover:text-[#ececec] bg-white border-slate-200 border text-slate-600 hover:border-indigo-500 hover:bg-slate-50 hover:text-slate-800"
               @click="$emit('quick-action', prompt)"
             >
               {{ prompt }}
@@ -89,71 +89,67 @@
   </div>
 </template>
 
-<script>
-  export default {
-    name: 'WelcomeScreen',
+<script setup>
+  import { ref } from 'vue';
 
-    data() {
-      return {
-        selectedAction: null,
-        quickActions: [
-          {
-            icon: '💻',
-            text: '写代码',
-            desc: '辅助编码、调试与解释',
-            prompts: [
-              '用 JavaScript 写一个防抖函数，并解释它的使用场景',
-              '用 Python 写一个批量重命名文件的脚本',
-              '写一个 SQL 查询，按月统计订单总额',
-              '写一个 React Hook，用于监听窗口尺寸变化'
-            ]
-          },
-          {
-            icon: '🌍',
-            text: '翻译',
-            desc: '中英互译、润色与术语解释',
-            prompts: [
-              '把"这个需求下周上线"翻译成得体的英文商务表达',
-              '英译中：The release is blocked by a flaky test',
-              '把"接口报错了"改写成对客户说的委婉说法',
-              '解释 break the ice 的来源，并给两个例句'
-            ]
-          },
-          {
-            icon: '✍️',
-            text: '写文章',
-            desc: '博客、邮件、文案与大纲',
-            prompts: [
-              '写一篇关于"为什么需要设计系统"的技术博客开头',
-              '写一封告知客户项目延期的邮件，附上补救方案',
-              '给我一份"在线教育 App"的 PRD 大纲',
-              '为面向小团队的会议纪要工具写一段产品文案'
-            ]
-          },
-          {
-            icon: '💡',
-            text: '分析问题',
-            desc: '排查、评估、对比与拆解',
-            prompts: [
-              '分析前端首屏加载慢的常见原因与排查思路',
-              '对比 REST 和 GraphQL 在移动端场景下的取舍',
-              '我想做个笔记应用，帮我拆解 MVP 该做哪些功能',
-              '评估在现有 Express 项目里引入 TypeScript 的成本与收益'
-            ]
-          }
-        ]
-      };
+  defineEmits(['quick-action']);
+
+  const selectedAction = ref(null);
+
+  const quickActions = [
+    {
+      icon: '💻',
+      text: '写代码',
+      desc: '辅助编码、调试与解释',
+      prompts: [
+        '用 JavaScript 写一个防抖函数，并解释它的使用场景',
+        '用 Python 写一个批量重命名文件的脚本',
+        '写一个 SQL 查询，按月统计订单总额',
+        '写一个 React Hook，用于监听窗口尺寸变化'
+      ]
     },
-
-    methods: {
-      selectAction(action) {
-        this.selectedAction = action;
-      },
-      back() {
-        this.selectedAction = null;
-      }
+    {
+      icon: '🌍',
+      text: '翻译',
+      desc: '中英互译、润色与术语解释',
+      prompts: [
+        '把"这个需求下周上线"翻译成得体的英文商务表达',
+        '英译中：The release is blocked by a flaky test',
+        '把"接口报错了"改写成对客户说的委婉说法',
+        '解释 break the ice 的来源，并给两个例句'
+      ]
+    },
+    {
+      icon: '✍️',
+      text: '写文章',
+      desc: '博客、邮件、文案与大纲',
+      prompts: [
+        '写一篇关于"为什么需要设计系统"的技术博客开头',
+        '写一封告知客户项目延期的邮件，附上补救方案',
+        '给我一份"在线教育 App"的 PRD 大纲',
+        '为面向小团队的会议纪要工具写一段产品文案'
+      ]
+    },
+    {
+      icon: '💡',
+      text: '分析问题',
+      desc: '排查、评估、对比与拆解',
+      prompts: [
+        '分析前端首屏加载慢的常见原因与排查思路',
+        '对比 REST 和 GraphQL 在移动端场景下的取舍',
+        '我想做个笔记应用，帮我拆解 MVP 该做哪些功能',
+        '评估在现有 Express 项目里引入 TypeScript 的成本与收益'
+      ]
     }
-  };
+  ];
+
+  function selectAction(action) {
+    selectedAction.value = action;
+  }
+
+  function back() {
+    selectedAction.value = null;
+  }
 </script>
 
 <style scoped>
@@ -163,7 +159,7 @@
       opacity 0.18s ease,
       transform 0.18s ease;
   }
-  .fade-enter,
+  .fade-enter-from,
   .fade-leave-to {
     opacity: 0;
     transform: translateY(6px);

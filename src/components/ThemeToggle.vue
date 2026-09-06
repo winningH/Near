@@ -1,6 +1,6 @@
 <template>
   <button
-    class="w-8 h-8 rounded-lg flex items-center justify-center transition-colors dark:hover:bg-[#252545] dark:text-[#a0a0c0] dark:hover:text-[#e8e8f0] hover:bg-slate-200 text-slate-500 hover:text-slate-700"
+    class="w-8 h-8 rounded-lg flex items-center justify-center transition-colors dark:hover:bg-[#262626] dark:text-[#a3a3a3] dark:hover:text-[#ececec] hover:bg-slate-200 text-slate-500 hover:text-slate-700"
     :title="isDark ? '切换到明亮模式' : '切换到暗黑模式'"
     @click="toggleTheme"
   >
@@ -35,30 +35,18 @@
   </button>
 </template>
 
-<script>
-  export default {
-    name: 'ThemeToggle',
+<script setup>
+  import { ref, onMounted } from 'vue';
 
-    data() {
-      return {
-        isDark: false
-      };
-    },
+  const isDark = ref(false);
 
-    mounted() {
-      this.isDark = document.documentElement.classList.contains('dark');
-    },
+  onMounted(() => {
+    isDark.value = document.documentElement.classList.contains('dark');
+  });
 
-    methods: {
-      toggleTheme() {
-        this.isDark = !this.isDark;
-        if (this.isDark) {
-          document.documentElement.classList.add('dark');
-        } else {
-          document.documentElement.classList.remove('dark');
-        }
-        localStorage.setItem('near-theme', this.isDark ? 'dark' : 'light');
-      }
-    }
-  };
+  function toggleTheme() {
+    isDark.value = !isDark.value;
+    document.documentElement.classList.toggle('dark', isDark.value);
+    localStorage.setItem('near-theme', isDark.value ? 'dark' : 'light');
+  }
 </script>

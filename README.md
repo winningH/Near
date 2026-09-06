@@ -1,9 +1,10 @@
 # Near - AI 智能助手
 
-基于 Vue 2 + Express 构建的自托管 AI 对话应用，支持流式响应、文件上传、深度思考模式与明暗主题切换。
+基于 Vue 3 + Vite + Express 构建的自托管 AI 对话应用，支持流式响应、文件上传、深度思考模式与明暗主题切换。
 后端对接**任意 OpenAI 兼容接口**（OpenAI、DeepSeek、Moonshot、本地 Ollama/vLLM 等），换服务商只需改三行环境变量。
 
-![Vue.js](https://img.shields.io/badge/Vue-2.7-4fc08d?logo=vue.js)
+![Vue.js](https://img.shields.io/badge/Vue-3.5-4fc08d?logo=vue.js)
+![Vite](https://img.shields.io/badge/Vite-5-646cff?logo=vite)
 ![Express](https://img.shields.io/badge/Express-4.18-000000?logo=express)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-06b6d4?logo=tailwindcss)
 ![Prisma](https://img.shields.io/badge/Prisma-5.22-2d3748?logo=prisma)
@@ -117,20 +118,24 @@ pnpm run dev
 
 ```
 Near/
-├── src/                          # Vue 前端源码
-│   ├── components/ChatPanel/    # 聊天面板组件（纯 UI）
+├── index.html                   # Vite 入口 HTML（含主题预加载与 hljs 配色切换）
+├── vite.config.js               # Vite 配置（端口 / 代理到后端）
+├── src/                         # Vue 3 前端源码（<script setup> 组合式 API）
+│   ├── components/              # 聊天面板组件（纯 UI）
 │   │   ├── index.vue            # 布局容器
 │   │   ├── Sidebar.vue          # 会话列表
 │   │   ├── MessageList.vue      # 消息列表与流式渲染
 │   │   ├── ChatInput.vue        # 输入框与附件
 │   │   ├── Drawer.vue           # 设置与关于
 │   │   ├── WelcomeScreen.vue    # 欢迎页
-│   │   └── ThemeToggle.vue      # 主题切换
+│   │   ├── ThemeToggle.vue      # 主题切换
+│   │   ├── ErrorBanner.vue      # 错误横幅
+│   │   └── Lightbox.vue         # 图片预览
 │   ├── api/                     # 接口封装
 │   ├── utils/                   # helpers / markdown 渲染
 │   ├── styles/                  # 全局样式
 │   ├── App.vue                  # 业务逻辑层
-│   └── main.js
+│   └── main.js                  # createApp 入口
 ├── server/                       # Express 后端
 │   ├── index.js                 # 入口（CORS / 限流 / 静态服务 / 优雅退出）
 │   ├── config.js                # 环境变量集中管理
@@ -141,11 +146,9 @@ Near/
 │   ├── schema.prisma            # 唯一数据模型定义
 │   ├── migrations/
 │   └── dev.db                   # SQLite 数据库（gitignore）
-├── public/
-│   ├── index.html
-│   └── uploads/                 # 上传文件（gitignore）
+├── uploads/                     # 上传文件（gitignore）
 ├── .env.example
-└── vue.config.js
+└── package.json
 ```
 
 ## 📦 依赖组织
@@ -160,14 +163,14 @@ Near/
 |------|-----|
 | 后端运行期 | `express` `multer` `dotenv` `@prisma/client` `uuid` |
 | 前端（构建期，产物进 `dist/`） | `vue` `marked` `highlight.js` |
-| 前端工具链 | `@vue/cli-service` `vue-template-compiler` `tailwindcss` `postcss` `autoprefixer` |
+| 前端工具链 | `vite` `@vitejs/plugin-vue` `tailwindcss` `postcss` `autoprefixer` |
 | 后端 CLI | `prisma` |
 | 开发工具 | `concurrently` |
 
 ### 已知代价
 
 - 生产部署时 `vue` / `marked` / `highlight.js` 会跟着装上，但它们已经打包进 `dist/`，服务端运行时并不需要（约 1–2MB，影响很小）。
-- 前端工具链（webpack 系，数百个传递依赖）和后端运行时共享 `node_modules`，任何一个出 CVE 都会算进生产依赖里。`pnpm audit` 时留意一下产物归属即可。
+- 前端工具链和后端运行时共享 `node_modules`，任何一个出 CVE 都会算进生产依赖里。`pnpm audit` 时留意一下产物归属即可。
 - `pnpm install` 无法只装一半，CI 里无法跳过前端工具链。
 
 ### 什么时候该拆
@@ -176,7 +179,7 @@ Near/
 
 - 后端需要单独容器化部署，或前端要上 CDN / 静态托管
 - 前后端有了独立的发布节奏或团队
-- 出现真实的依赖版本冲突（例如某个后端包和 webpack 工具链需要同一包的不同大版本）
+- 出现真实的依赖版本冲突（例如某个后端包和前端构建工具链需要同一包的不同大版本）
 - 后端依赖明显膨胀（加 Redis、队列、认证等），前端工具链又很重
 
 真要拆的话，`uuid` 需要两边各装一份（前端用 `src/utils/helpers.js` 里的 `generateId()`，不依赖 uuid 包），`prisma` 目录和 `uploads/` 的归属也要重新规划。

@@ -50,13 +50,15 @@ export async function uploadFiles(formData) {
 }
 
 export function deleteUploadedFile(url) {
-  const filename = String(url || '').split('/').pop();
-  if (!filename) return Promise.resolve();
-  return fetch(`${API_BASE}/upload/${encodeURIComponent(filename)}`, { method: 'DELETE' })
+  // 取 /uploads/ 之后的相对路径（新文件为 yyyyMM/uuid.ext，旧文件为 uuid.ext）
+  const subPath = String(url || '').split('/uploads/')[1] || ''
+  if (!subPath) return Promise.resolve()
+  const encoded = subPath.split('/').map(encodeURIComponent).join('/')
+  return fetch(`${API_BASE}/upload/${encoded}`, { method: 'DELETE' })
     .then(res => {
-      if (!res.ok) throw new Error('删除文件失败');
-      return res.json();
-    });
+      if (!res.ok) throw new Error('删除文件失败')
+      return res.json()
+    })
 }
 
 export function chatStream(conversationId, message, attachments, model, thinkMode, signal) {

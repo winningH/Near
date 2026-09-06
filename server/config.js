@@ -97,13 +97,14 @@ module.exports = {
   },
 
   upload: {
-    // 存放在 public/ 之外：public/ 会被前端 dev server 监听，
-    // 每次上传写入都会触发 webpack 重编译并整页刷新，导致已选附件丢失
+    // 存放在 public/ 之外：public/ 下的文件会被前端 dev server（Vite）直接伺服，
+    // 上传目录暴露在公开路径不合适，也会被构建工具监听
     dir: path.resolve(__dirname, '..', 'uploads'),
     maxFileSize: Number(optional('MAX_FILE_SIZE', String(10 * 1024 * 1024))) || 10 * 1024 * 1024,
     maxFiles: Number(optional('MAX_FILES', '10')) || 10,
-    // 未被任何消息引用且超过该时长（小时）的文件视为孤儿，由定期清理删除。
-    // 保留期是为了避免误删用户还在输入区编辑、尚未发送的附件
+    // 上传后从未随消息发送（数据库无引用）的文件属于遗留临时文件，
+    // 超过该时长（小时）即由定期清理删除。保留期是为了避免误删
+    // 用户还在输入区编辑、尚未发送的附件
     orphanRetentionHours: Number(optional('UPLOAD_RETENTION_HOURS', '24')) || 24,
     // 超过该大小的图片不做 base64 内联，避免请求体过大
     visionMaxSize: 5 * 1024 * 1024

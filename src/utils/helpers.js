@@ -44,16 +44,24 @@ export function formatDate(date) {
   }
 
   if (diff < 24 * 60 * 60 * 1000) {
-    const hours = Math.floor(diff / (60 * 60 * 1000))
+    const hours = Math.floor(diff / (60 * 1000))
     return hours + '小时前'
   }
 
   if (diff < 7 * 24 * 60 * 60 * 1000) {
-    const days = Math.floor(diff / (24 * 60 * 60 * 1000))
+    const days = Math.floor(diff / (24 * 60 * 1000))
     return days + '天前'
   }
 
   return d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+}
+
+/** yyyy-MM，用于会话列表的月份标签 */
+export function formatYearMonth(date) {
+  if (!date) return ''
+  const d = new Date(date)
+  if (isNaN(d.getTime())) return ''
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
 /**

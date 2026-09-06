@@ -1,5 +1,5 @@
 <template>
-  <div class="h-screen flex min-w-[660px] dark:bg-[#1a1a2e] bg-slate-50">
+  <div class="h-screen flex min-w-[660px] dark:bg-[#1a1a1a] bg-slate-50">
     <Sidebar
       :conversations="conversations"
       :current-id="currentId"
@@ -53,59 +53,64 @@
       />
     </main>
 
-    <Drawer :visible.sync="drawerOpen" />
+    <Drawer v-model:visible="drawerOpen" />
   </div>
 </template>
 
-<script>
-  import Sidebar from './Sidebar';
-  import WelcomeScreen from './WelcomeScreen';
-  import MessageList from './MessageList';
-  import ChatInput from './ChatInput';
-  import Drawer from './Drawer';
-  import ErrorBanner from './ErrorBanner';
+<script setup>
+  import { ref } from 'vue';
+  import Sidebar from './Sidebar.vue';
+  import WelcomeScreen from './WelcomeScreen.vue';
+  import MessageList from './MessageList.vue';
+  import ChatInput from './ChatInput.vue';
+  import Drawer from './Drawer.vue';
+  import ErrorBanner from './ErrorBanner.vue';
 
-  export default {
-    name: 'ChatPanel',
-
-    components: { Sidebar, WelcomeScreen, MessageList, ChatInput, Drawer, ErrorBanner },
-
-    props: {
-      conversations: { type: Array, default: () => [] },
-      currentId: { type: String, default: null },
-      messages: { type: Array, default: () => [] },
-      isCollapsed: { type: Boolean, default: false },
-      isStreaming: { type: Boolean, default: false },
-      thinkMode: { type: Boolean, default: false },
-      error: { type: String, default: null },
-      canRetry: { type: Boolean, default: false },
-      streamingContent: { type: String, default: '' },
-      streamingReasoning: { type: String, default: '' },
-      config: {
-        type: Object,
-        default: () => ({
-          appName: 'Near',
-          model: '',
-          thinkingModel: null,
-          thinkingEnabled: false,
-          configured: false
-        })
-      }
-    },
-
-    data() {
-      return {
-        drawerOpen: false
-      };
-    },
-
-    methods: {
-      onRename(id, title) {
-        this.$emit('rename-conversation', id, title);
-      },
-      onSend(message, attachments) {
-        this.$emit('send', message, attachments);
-      }
+  defineProps({
+    conversations: { type: Array, default: () => [] },
+    currentId: { type: String, default: null },
+    messages: { type: Array, default: () => [] },
+    isCollapsed: { type: Boolean, default: false },
+    isStreaming: { type: Boolean, default: false },
+    thinkMode: { type: Boolean, default: false },
+    error: { type: String, default: null },
+    canRetry: { type: Boolean, default: false },
+    streamingContent: { type: String, default: '' },
+    streamingReasoning: { type: String, default: '' },
+    config: {
+      type: Object,
+      default: () => ({
+        appName: 'Near',
+        model: '',
+        thinkingModel: null,
+        thinkingEnabled: false,
+        configured: false
+      })
     }
-  };
+  });
+
+  const emit = defineEmits([
+    'toggle-sidebar',
+    'select-conversation',
+    'new-chat',
+    'delete-conversation',
+    'rename-conversation',
+    'send',
+    'stop',
+    'toggle-think',
+    'dismiss-error',
+    'retry',
+    'notify',
+    'quick-action'
+  ]);
+
+  const drawerOpen = ref(false);
+
+  function onRename(id, title) {
+    emit('rename-conversation', id, title);
+  }
+
+  function onSend(message, attachments) {
+    emit('send', message, attachments);
+  }
 </script>

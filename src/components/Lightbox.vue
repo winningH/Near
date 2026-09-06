@@ -4,32 +4,28 @@
   </div>
 </template>
 
-<script>
+<script setup>
+  import { onMounted, onBeforeUnmount } from 'vue';
   import { safeUrl } from '../utils/helpers';
 
-  export default {
-    name: 'Lightbox',
+  defineProps({
+    // 要预览的附件对象，为 null 时不渲染
+    att: { type: Object, default: null }
+  });
 
-    props: {
-      // 要预览的附件对象，为 null 时不渲染
-      att: { type: Object, default: null }
-    },
+  const emit = defineEmits(['close']);
 
-    mounted() {
-      document.addEventListener('keydown', this.onKey);
-    },
+  function onKey(e) {
+    if (e.key === 'Escape') emit('close');
+  }
 
-    beforeDestroy() {
-      document.removeEventListener('keydown', this.onKey);
-    },
+  onMounted(() => {
+    document.addEventListener('keydown', onKey);
+  });
 
-    methods: {
-      safeUrl,
-      onKey(e) {
-        if (e.key === 'Escape') this.$emit('close');
-      }
-    }
-  };
+  onBeforeUnmount(() => {
+    document.removeEventListener('keydown', onKey);
+  });
 </script>
 
 <style scoped>

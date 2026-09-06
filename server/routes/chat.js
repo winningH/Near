@@ -5,8 +5,8 @@ const router = express.Router()
 const prisma = require('../prisma')
 const config = require('../config')
 const { v4: uuidv4 } = require('uuid')
+const { resolveUploadPath } = require('../uploadPath')
 
-const UPLOAD_DIR = config.upload.dir
 const MAX_CONTEXT_MESSAGES = Number(process.env.MAX_CONTEXT_MESSAGES) || 40
 const MAX_TEXT_CHARS = 20000
 
@@ -49,8 +49,9 @@ function buildContent(text, attachments, withVision) {
   const images = []
 
   for (const att of list) {
-    const filePath = path.join(UPLOAD_DIR, path.basename(att.url || ''))
-    const exists = fs.existsSync(filePath)
+    // 兼容历史根目录文件与按月分目录（yyyyMM）的新文件；非法/越界 URL 视为不存在
+    const filePath = resolveUploadPath(att.url)
+    const exists = !!filePath && fs.existsSync(filePath)
     const isImage = typeof att.type === 'string' && att.type.startsWith('image/')
 
     if (isImage) {
