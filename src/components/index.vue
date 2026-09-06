@@ -13,10 +13,7 @@
     />
 
     <main class="flex-1 flex flex-col min-w-0">
-      <WelcomeScreen
-        v-if="messages.length === 0 && !isStreaming"
-        @quick-action="$emit('quick-action', $event)"
-      />
+      <WelcomeScreen v-if="messages.length === 0 && !isStreaming" @send="onSend" />
       <MessageList
         v-else
         :messages="messages"
@@ -80,7 +77,6 @@
     config: {
       type: Object,
       default: () => ({
-        appName: 'Near',
         model: '',
         thinkingModel: null,
         thinkingEnabled: false,
@@ -100,8 +96,7 @@
     'toggle-think',
     'dismiss-error',
     'retry',
-    'notify',
-    'quick-action'
+    'notify'
   ]);
 
   const drawerOpen = ref(false);

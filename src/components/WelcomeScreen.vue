@@ -78,7 +78,7 @@
               v-for="(prompt, idx) in selectedAction.prompts"
               :key="idx"
               class="text-left px-4 py-3 rounded-xl text-sm transition-all dark:bg-[#222222] dark:border-[#2e2e2e] dark:border dark:text-[#a3a3a3] dark:hover:border-[#6c63ff] dark:hover:bg-[#262626] dark:hover:text-[#ececec] bg-white border-slate-200 border text-slate-600 hover:border-indigo-500 hover:bg-slate-50 hover:text-slate-800"
-              @click="$emit('quick-action', prompt)"
+              @click="$emit('send', prompt, [])"
             >
               {{ prompt }}
             </button>
@@ -92,7 +92,7 @@
 <script setup>
   import { ref } from 'vue';
 
-  defineEmits(['quick-action']);
+  defineEmits(['send']);
 
   const selectedAction = ref(null);
 

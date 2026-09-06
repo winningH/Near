@@ -4,7 +4,6 @@
   >
     <div class="max-w-3xl mx-auto w-full">
       <div
-        ref="inputContainer"
         class="dark:bg-[#222222] bg-white dark:border-[#2e2e2e] border-slate-200 border rounded-2xl px-3 pb-3 pt-2 transition-all"
         @click="focusTextarea"
         @paste="handlePaste"
@@ -283,7 +282,6 @@
   // 当前预览大图的附件，null 表示未打开
   const lightboxAtt = ref(null);
 
-  const inputContainer = ref(null);
   const textarea = ref(null);
   const fileInput = ref(null);
   const attachmentsContainer = ref(null);

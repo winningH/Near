@@ -211,7 +211,7 @@
     if (e.deltaY < 0) userAtBottom.value = false;
   }
 
-  // 用组件根节点代替 v-for + ref：Vue 2 下 v-if 会让 ref 数组顺序不可靠
+  // 直接在组件根节点范围内查询，避免为每条消息挂 ref
   function highlightAll() {
     if (!rootEl.value) return;
     const nodes = rootEl.value.querySelectorAll('.message-content');

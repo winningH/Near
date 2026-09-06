@@ -23,7 +23,6 @@
       @retry="handleRetry"
       :can-retry="!!lastFailed"
       @notify="error = $event"
-      @quick-action="handleQuickAction"
     />
   </div>
 </template>
@@ -49,12 +48,10 @@
   const thinkMode = ref(false);
   const streamingContent = ref('');
   const streamingReasoning = ref('');
-  const isLoading = ref(true);
   const error = ref(null);
   // 最近一次失败的消息，供错误横幅上的“重试”复用
   const lastFailed = ref(null);
   const runtimeConfig = ref({
-    appName: 'Near',
     model: '',
     thinkingModel: null,
     thinkingEnabled: false,
@@ -126,8 +123,6 @@
       conversations.value = await fetchConversations();
     } catch (err) {
       console.error('加载对话列表失败:', err);
-    } finally {
-      isLoading.value = false;
     }
   }
 
@@ -332,10 +327,6 @@
     if (abortController) {
       abortController.abort();
     }
-  }
-
-  function handleQuickAction(prompt) {
-    handleSendMessage(prompt, []);
   }
 
   onMounted(() => {
