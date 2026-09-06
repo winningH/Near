@@ -61,11 +61,11 @@ export function deleteUploadedFile(url) {
     })
 }
 
-export function chatStream(conversationId, message, attachments, model, thinkMode, signal) {
+export function chatStream(conversationId, message, attachments, model, thinkMode, signal, isContinue) {
   return fetch(`${API_BASE}/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ conversationId, message, attachments, model, thinkMode }),
+    body: JSON.stringify({ conversationId, message, attachments, model, thinkMode, continue: isContinue }),
     signal
   });
 }

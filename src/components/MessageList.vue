@@ -48,7 +48,7 @@
           </div>
 
           <div
-            v-if="msg.content"
+            v-if="msg.content || msg.reasoningContent"
             class="message-content block max-w-full"
             :class="
               msg.role === 'user'
@@ -62,12 +62,38 @@
 
     <div v-if="isStreaming" class="py-3 animate-fade-in">
       <div class="max-w-3xl mx-auto">
-        <div
-          ref="streamingRef"
-          class="message-content block max-w-full py-0.5 text-[14.5px] leading-relaxed text-slate-800 dark:text-[#ececec]"
-          v-html="streamingHtml"
-        ></div>
+        <!-- 流式渲染始终输出完整累积内容的 markdown（与最终消息一致），150ms 节流控制重排频率；
+             思考与正文拆成两个节点：正文更新时思考块 DOM 静止，收起/展开状态不会被打断 -->
+        <div ref="streamingRef" class="block max-w-full text-[14.5px] leading-relaxed text-slate-800 dark:text-[#ececec]">
+          <div v-if="throttledReasoning" class="mb-3" v-html="streamingThinkingHtml"></div>
+          <div v-if="throttledContent" v-html="streamingContentHtml"></div>
+          <div v-if="!throttledReasoning && !throttledContent" class="typing-indicator">
+            <span class="dark:bg-[#6e6e6e] bg-slate-400"></span><span class="dark:bg-[#6e6e6e] bg-slate-400"></span><span class="dark:bg-[#6e6e6e] bg-slate-400"></span>
+          </div>
+        </div>
       </div>
+    </div>
+
+    <!-- 中断后：最后一条是带内容的助手消息时，提供「继续生成」入口 -->
+    <div v-if="canContinue && !isStreaming && lastIsAssistant" class="max-w-3xl mx-auto py-1">
+      <button
+        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] border dark:border-[#2e2e2e] border-slate-200 dark:text-[#a3a3a3] text-slate-600 dark:hover:bg-[#262626] hover:bg-slate-100 dark:hover:text-[#ececec] hover:text-slate-800 transition-colors"
+        @click="$emit('continue')"
+      >
+        <svg
+          class="w-3.5 h-3.5"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+          <polyline points="21 3 21 8 16 8" />
+        </svg>
+        继续生成
+      </button>
     </div>
 
     <!-- 错误紧跟在最后一条消息之后（即回复本该出现的位置），参考 DeepSeek 的失败样式 -->
@@ -87,7 +113,7 @@
 <script setup>
   import { ref, computed, watch, onMounted, nextTick } from 'vue';
   import { formatFileSize, safeUrl, toggleHeight } from '../utils/helpers';
-  import { buildThinkingAndContent, highlightCode, escapeHtml } from '../utils/markdown';
+  import { buildThinkingAndContent, highlightCode, escapeHtml, renderMarkdown } from '../utils/markdown';
   import ErrorBanner from './ErrorBanner.vue';
   import Lightbox from './Lightbox.vue';
 
@@ -97,10 +123,18 @@
     streamingContent: { type: String, default: '' },
     streamingReasoning: { type: String, default: '' },
     error: { type: String, default: null },
-    canRetry: { type: Boolean, default: false }
+    canRetry: { type: Boolean, default: false },
+    canContinue: { type: Boolean, default: false }
   });
 
-  defineEmits(['dismiss-error', 'retry']);
+  defineEmits(['dismiss-error', 'retry', 'continue']);
+
+  // 仅当最后一条是助手消息（有正文或思考内容）时，「继续生成」才有意义
+  // （如首轮中断被回滚，最后一条是用户消息，则不显示）
+  const lastIsAssistant = computed(() => {
+    const last = props.messages[props.messages.length - 1];
+    return !!(last && last.role === 'assistant' && (last.content || last.reasoningContent));
+  });
 
   // 组件根节点：既是 markdown 查询范围，也是滚动容器（滚动跟随依赖它）
   const rootEl = ref(null);
@@ -120,12 +154,28 @@
   // 流式期间节流高亮，避免每个分片都重排整段 HTML
   let lastHighlightAt = 0;
 
-  const streamingHtml = computed(() => {
-    if (props.streamingContent || props.streamingReasoning) {
-      return buildThinkingAndContent(props.streamingReasoning, props.streamingContent);
-    }
-    return '<div class="typing-indicator dark:bg-transparent bg-transparent"><span class="dark:bg-[#6e6e6e] bg-slate-400"></span><span class="dark:bg-[#6e6e6e] bg-slate-400"></span><span class="dark:bg-[#6e6e6e] bg-slate-400"></span></div>';
-  });
+  // 流式渲染：始终渲染完整累积内容的 markdown（与最终消息完全一致，
+  // 代码块、表格等跨段结构不会断裂），150ms 节流控制重排频率；
+  // 思考与正文拆成两个节点：正文更新时思考块 DOM 静止，收起/展开状态不会被打断
+  const throttledReasoning = ref('');
+  const throttledContent = ref('');
+  let lastRenderAt = 0;
+
+  watch(
+    () => [props.streamingContent, props.streamingReasoning, props.isStreaming],
+    ([content, reasoning, streaming]) => {
+      const now = Date.now();
+      // 流式进行中按 150ms 节流；开始/结束时立即刷新，保证最终内容完整准确
+      if (streaming && now - lastRenderAt < 150) return;
+      lastRenderAt = now;
+      throttledReasoning.value = reasoning;
+      throttledContent.value = content;
+    },
+    { immediate: true }
+  );
+
+  const streamingThinkingHtml = computed(() => buildThinkingAndContent(throttledReasoning.value, ''));
+  const streamingContentHtml = computed(() => renderMarkdown(throttledContent.value));
 
   // immediate：从欢迎页首次进入会话时组件是新挂载的，需要对初始消息就执行
   // 高亮与思考块收起（watcher 默认不响应初始值）
@@ -235,13 +285,28 @@
     if (body) body.style.height = '0px';
   }
 
-  // 流式期间：正文一旦出现，说明思考已全部输出，自动收起思考块
+  // 本次流式是否已自动收起过思考块：只在正文首次出现时收起一次。
+  // 不加标记的话每个 token 都会重新收起，用户手动展开会被立刻压回，
+  // 表现为思考块反复弹跳（抖动）、输出期间无法展开
+  let streamThinkingAutoCollapsed = false;
+
+  watch(
+    () => props.isStreaming,
+    val => {
+      // 新一轮请求开始时重置，下一段思考输出完毕后仍会自动收起
+      if (val) streamThinkingAutoCollapsed = false;
+    }
+  );
+
+  // 流式期间：正文一旦出现，说明思考已全部输出，自动收起思考块（仅一次）
   function autoCollapseStreamingThinking() {
-    if (!props.streamingContent) return;
+    if (!props.streamingContent || streamThinkingAutoCollapsed) return;
     const el = streamingRef.value;
     if (!el) return;
     const block = el.querySelector('.thinking-block');
-    if (block) collapseThinking(block);
+    if (!block) return;
+    streamThinkingAutoCollapsed = true;
+    collapseThinking(block);
   }
 
   // 历史消息：思考与正文齐全的，说明思考已完整输出，默认收起

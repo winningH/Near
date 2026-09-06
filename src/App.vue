@@ -22,6 +22,8 @@
       @dismiss-error="error = null"
       @retry="handleRetry"
       :can-retry="!!lastFailed"
+      :can-continue="interrupted"
+      @continue="handleContinueGeneration"
       @notify="error = $event"
     />
   </div>
@@ -51,6 +53,8 @@
   const error = ref(null);
   // 最近一次失败的消息，供错误横幅上的“重试”复用
   const lastFailed = ref(null);
+  // 最近一次回复被用户中断：在消息列表尾部显示「继续生成」入口
+  const interrupted = ref(false);
   const runtimeConfig = ref({
     model: '',
     thinkingModel: null,
@@ -130,6 +134,9 @@
     try {
       const data = await fetchConversation(id);
       messages.value = data.messages || [];
+      // 最后一条助手消息带有中断标记时，从历史打开也显示「继续生成」
+      const last = messages.value[messages.value.length - 1];
+      interrupted.value = !!(last && last.role === 'assistant' && last.interrupted);
     } catch (err) {
       console.error('加载消息失败:', err);
     }
@@ -139,6 +146,7 @@
     if (isStreaming.value) return;
     currentId.value = id;
     error.value = null;
+    interrupted.value = false;
     loadMessages(id);
   }
 
@@ -146,6 +154,7 @@
     currentId.value = null;
     messages.value = [];
     error.value = null;
+    interrupted.value = false;
   }
 
   async function handleDeleteConversation(id) {
@@ -155,6 +164,7 @@
       if (currentId.value === id) {
         currentId.value = null;
         messages.value = [];
+        interrupted.value = false;
       }
     } catch (err) {
       console.error('删除对话失败:', err);
@@ -180,6 +190,108 @@
     thinkMode.value = !thinkMode.value;
   }
 
+  // 读取 SSE 流：增量写入 streaming 状态，返回 { completed, rolledBack }。
+  // onError：收到错误事件时的附加处理（如记录可重试消息）
+  async function consumeStream(res, onError) {
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let completed = false;
+    let rolledBack = false;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data: ')) continue;
+        try {
+          const data = JSON.parse(trimmed.slice(6));
+          if (data.error) {
+            // 错误事件只进错误横幅，不作为流式增量渲染，
+            // 否则错误文字会在气泡里闪现一下又随流结束消失
+            error.value = data.content || '生成失败';
+            rolledBack = !!data.rolledBack;
+            if (onError) onError();
+          } else {
+            if (data.content !== undefined) streamingContent.value = data.content;
+            if (data.reasoning_content !== undefined)
+              streamingReasoning.value = data.reasoning_content;
+          }
+          if (data.done) completed = true;
+        } catch (e) {
+          console.warn('解析 SSE 数据失败:', e);
+        }
+      }
+    }
+    return { completed, rolledBack };
+  }
+
+  // 继续生成：让模型从上一次被中断的回复处续写（不新增用户消息，续写内容作为新回复落库）
+  async function handleContinueGeneration() {
+    if (isStreaming.value || !currentId.value) return;
+    interrupted.value = false;
+    isStreaming.value = true;
+    streamingContent.value = '';
+    streamingReasoning.value = '';
+    abortController = new AbortController();
+    let abortedByUser = false;
+    let completed = false;
+
+    try {
+      const res = await chatStream(
+        currentId.value,
+        '',
+        [],
+        undefined,
+        thinkMode.value,
+        abortController.signal,
+        true
+      );
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        let message = '继续生成失败: ' + res.status;
+        try {
+          const parsed = JSON.parse(errorText);
+          if (parsed && parsed.error) message = parsed.error;
+        } catch (e) {
+          if (errorText) message += ' ' + errorText.slice(0, 200);
+        }
+        throw new Error(message);
+      }
+
+      const { completed: streamCompleted } = await consumeStream(res);
+      completed = streamCompleted;
+      await loadConversations();
+      await loadMessages(currentId.value);
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        console.log('用户中断继续生成');
+        abortedByUser = true;
+      } else {
+        console.error('继续生成失败:', err);
+        error.value = err.message || '继续生成失败';
+      }
+    } finally {
+      isStreaming.value = false;
+      streamingContent.value = '';
+      streamingReasoning.value = '';
+      abortController = null;
+      // 续写被中断：已生成的部分已由服务端落库，刷新后继续提供「继续生成」入口
+      if (!completed) {
+        await loadConversations();
+        await loadMessages(currentId.value);
+        if (abortedByUser) interrupted.value = true;
+      }
+    }
+  }
+
   async function handleSendMessage(content, attachments) {
     if (isStreaming.value) return;
 
@@ -190,6 +302,7 @@
     }
 
     error.value = null;
+    interrupted.value = false;
 
     const localMsg = {
       id: generateId(),
@@ -240,57 +353,25 @@
         throw err;
       }
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed.startsWith('data: ')) continue;
-          try {
-            const data = JSON.parse(trimmed.slice(6));
-            if (data.error) {
-              // 错误事件只进错误横幅，不作为流式增量渲染，
-              // 否则错误文字会在气泡里闪现一下又随流结束消失
-              error.value = data.content || '生成失败';
-              lastFailed.value = { content, attachments, localMsgId: localMsg.id };
-              rolledBack = !!data.rolledBack;
-            } else {
-              if (data.content !== undefined) streamingContent.value = data.content;
-              if (data.reasoning_content !== undefined)
-                streamingReasoning.value = data.reasoning_content;
-            }
-            if (data.done) {
-              completed = true;
-              if (!rolledBack) {
-                await loadConversations();
-                await loadMessages(conversationId);
-              }
-            }
-          } catch (e) {
-            console.warn('解析 SSE 数据失败:', e);
-          }
+      const { completed: streamCompleted, rolledBack: serverRolledBack } = await consumeStream(
+        res,
+        () => {
+          lastFailed.value = { content, attachments, localMsgId: localMsg.id };
         }
-      }
+      );
+      completed = streamCompleted;
+      rolledBack = serverRolledBack;
 
-      if (!completed) {
-        completed = true;
-        if (!rolledBack) {
-          await loadConversations();
-          await loadMessages(conversationId);
-        }
+      // done 事件或流意外结束：都要从库刷新，助手消息才会出现在界面上
+      if (!rolledBack) {
+        await loadConversations();
+        await loadMessages(conversationId);
       }
     } catch (err) {
       if (err.name === 'AbortError') {
         console.log('用户中断生成');
+        // 已生成的部分内容已落库，显示「继续生成」入口
+        interrupted.value = true;
       } else {
         console.error('聊天请求失败:', err);
         error.value = err.message || '请求失败，请检查网络连接或 API 配置';

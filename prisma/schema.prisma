@@ -22,6 +22,8 @@ model Message {
   role             String       // 'user' | 'assistant'
   content          String
   reasoningContent String?      @map("reasoning_content")
+  // 该回复被用户中断过（内容不完整），前端据此在会话尾部显示「继续生成」
+  interrupted      Boolean      @default(false)
   timestamp        DateTime     @default(now())
   conversationId   String       @map("conversation_id")
   conversation     Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)

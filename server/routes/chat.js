@@ -10,6 +10,10 @@ const { resolveUploadPath } = require('../uploadPath')
 const MAX_CONTEXT_MESSAGES = Number(process.env.MAX_CONTEXT_MESSAGES) || 40
 const MAX_TEXT_CHARS = 20000
 
+// 继续生成的指令：让模型从被中断的回复处直接续写，不重复已有内容
+const CONTINUE_PROMPT =
+  '你上一条回复被用户中断了。请从中断处直接继续输出剩余内容，保持连贯，不要重复已有内容，也不要添加任何前缀或说明。'
+
 const TEXT_EXT = new Set([
   '.txt', '.md', '.markdown', '.json', '.csv', '.log', '.xml', '.yaml', '.yml',
   '.js', '.ts', '.jsx', '.tsx', '.vue', '.py', '.java', '.go', '.rb', '.php',
@@ -156,7 +160,7 @@ async function generateAiTitle(conversationId, source) {
 }
 
 router.post('/', async (req, res) => {
-  const { conversationId, message, attachments, model: reqModel, thinkMode } = req.body || {}
+  const { conversationId, message, attachments, model: reqModel, thinkMode, continue: isContinue } = req.body || {}
 
   if (!conversationId) {
     return res.status(400).json({ error: '缺少 conversationId' })
@@ -173,13 +177,26 @@ router.post('/', async (req, res) => {
 
   // 是否开启深度思考：以【前端开关】为准，而非模型名匹配。
   // 必须服务端配置过思考模型，开关才生效。
+  // 继续生成不开启思考：思考针对的是原始任务，续写只需接上内容
   const wantThink = Boolean(thinkMode)
-  const isThinking = wantThink && Boolean(config.ai.thinkingModel)
+  const isThinking = wantThink && Boolean(config.ai.thinkingModel) && !isContinue
 
   const useModel =
     (reqModel && allowedModels.includes(reqModel))
       ? reqModel
       : (isThinking && config.ai.thinkingModel ? config.ai.thinkingModel : config.ai.model)
+
+  // 继续生成：定位最近一条被中断的助手消息，续写内容将合并回该消息
+  let continueTarget = null
+  if (isContinue) {
+    continueTarget = await prisma.message.findFirst({
+      where: { conversationId, role: 'assistant', interrupted: true },
+      orderBy: { timestamp: 'desc' }
+    })
+    if (!continueTarget) {
+      return res.status(400).json({ error: '没有可继续生成的中断回复' })
+    }
+  }
 
   let conversation
   try {
@@ -190,22 +207,25 @@ router.post('/', async (req, res) => {
       })
     }
 
-    await prisma.message.create({
-      data: {
-        role: 'user',
-        content: message || '',
-        conversationId,
-        attachments: {
-          create: (attachments || []).map(att => ({
-            name: String(att.name || '').slice(0, 200),
-            url: String(att.url || ''),
-            size: Number(att.size) || 0,
-            type: String(att.type || '')
-          }))
+    // 继续生成：不落库新的用户消息，仅以现有上下文（含被中断的部分回复）请求续写
+    if (!isContinue) {
+      await prisma.message.create({
+        data: {
+          role: 'user',
+          content: message || '',
+          conversationId,
+          attachments: {
+            create: (attachments || []).map(att => ({
+              name: String(att.name || '').slice(0, 200),
+              url: String(att.url || ''),
+              size: Number(att.size) || 0,
+              type: String(att.type || '')
+            }))
+          }
         }
-      }
-    })
-    await touchConversation(conversationId)
+      })
+      await touchConversation(conversationId)
+    }
   } catch (error) {
     console.error('保存用户消息失败:', error)
     return res.status(500).json({ error: '保存消息失败' })
@@ -217,22 +237,25 @@ router.post('/', async (req, res) => {
   if (!titleSource && Array.isArray(attachments) && attachments.length > 0) {
     titleSource = attachments.map(a => a.name).join(', ')
   }
-  try {
-    const userMessageCount = await prisma.message.count({ where: { conversationId, role: 'user' } })
-    if (userMessageCount === 1) {
-      isFirstRound = true
-      if (titleSource) {
-        await prisma.conversation.update({
-          where: { id: conversationId },
-          data: { title: titleSource.length > 30 ? titleSource.slice(0, 30) + '…' : titleSource }
-        })
+  if (!isContinue) {
+    try {
+      const userMessageCount = await prisma.message.count({ where: { conversationId, role: 'user' } })
+      if (userMessageCount === 1) {
+        isFirstRound = true
+        if (titleSource) {
+          await prisma.conversation.update({
+            where: { id: conversationId },
+            data: { title: titleSource.length > 30 ? titleSource.slice(0, 30) + '…' : titleSource }
+          })
+        }
       }
+    } catch (error) {
+      console.error('生成会话标题失败:', error)
     }
-  } catch (error) {
-    console.error('生成会话标题失败:', error)
   }
 
-  const aiMsgId = uuidv4()
+  // 继续生成时沿用被中断原消息的 id，SSE 事件与最终落库都对应到同一条回复
+  const aiMsgId = continueTarget ? continueTarget.id : uuidv4()
   let fullContent = ''
   let fullReasoning = ''
 
@@ -252,18 +275,36 @@ router.post('/', async (req, res) => {
     }
   })
 
-  const saveAssistantMessage = async () => {
+  // 保存助手消息：续写模式把新内容追加回被中断的原消息（完成后清除中断标记），
+  // 原文为空时整体替换；中断时保留 interrupted 标记以便再次续写；普通模式新建消息
+  const saveAssistantMessage = async (interrupted = false) => {
     if (!fullContent && !fullReasoning) return
     try {
-      await prisma.message.create({
-        data: {
-          id: aiMsgId,
-          role: 'assistant',
-          content: fullContent,
-          reasoningContent: fullReasoning || null,
-          conversationId
-        }
-      })
+      if (continueTarget) {
+        const origin = await prisma.message.findUnique({ where: { id: continueTarget.id } })
+        const appending = !!(origin.content && fullContent)
+        await prisma.message.update({
+          where: { id: continueTarget.id },
+          data: {
+            content: appending ? (origin.content || '') + fullContent : (fullContent || origin.content || ''),
+            reasoningContent: appending
+              ? ((origin.reasoningContent || '') + fullReasoning) || null
+              : fullReasoning || origin.reasoningContent || null,
+            interrupted
+          }
+        })
+      } else {
+        await prisma.message.create({
+          data: {
+            id: aiMsgId,
+            role: 'assistant',
+            content: fullContent,
+            reasoningContent: fullReasoning || null,
+            interrupted,
+            conversationId
+          }
+        })
+      }
       await touchConversation(conversationId)
     } catch (error) {
       console.error('保存助手消息失败:', error)
@@ -294,7 +335,16 @@ router.post('/', async (req, res) => {
 
     let messagesForAI = buildMessages(true)
 
-    console.log(`[Chat] 模型 ${useModel}，上下文 ${messagesForAI.length} 条`)
+    // 继续生成：在上下文末尾追加续写指令，让模型从被中断的回复处直接续写；
+    // 原文为空（仅思考内容被中断）时改为重新完整回答
+    if (isContinue) {
+      const prompt = continueTarget.content
+        ? CONTINUE_PROMPT
+        : '你刚才的回答还没有输出就被中断了。请重新完整地回答用户最初的问题。'
+      messagesForAI = [...messagesForAI, { role: 'user', content: prompt }]
+    }
+
+    console.log(`[Chat] 模型 ${useModel}，上下文 ${messagesForAI.length} 条${isContinue ? '（继续生成）' : ''}`)
 
     const requestBody = {
       model: useModel,
@@ -380,9 +430,9 @@ router.post('/', async (req, res) => {
     }
 
     if (aborted) {
-      // 用户中断：保留已生成的部分内容，保证上下文连续
+      // 用户中断：保留已生成的部分内容并打上中断标记，保证上下文连续且可「继续生成」
       console.log('[Chat] 客户端中断生成')
-      await saveAssistantMessage()
+      await saveAssistantMessage(true)
       // 一个字都没生成就中断的首轮，同样不留空会话
       if (!fullContent && !fullReasoning) await rollbackIfFirstRoundFailure(conversationId)
       return
@@ -405,7 +455,7 @@ router.post('/', async (req, res) => {
   } catch (error) {
     if (aborted || error.name === 'AbortError') {
       console.log('[Chat] 请求被中断')
-      await saveAssistantMessage()
+      await saveAssistantMessage(true)
       if (!fullContent && !fullReasoning) await rollbackIfFirstRoundFailure(conversationId)
       return
     }

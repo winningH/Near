@@ -22,8 +22,10 @@
         :streaming-reasoning="streamingReasoning"
         :error="error"
         :can-retry="canRetry"
+        :can-continue="canContinue"
         @dismiss-error="$emit('dismiss-error')"
         @retry="$emit('retry')"
+        @continue="$emit('continue')"
       />
 
       <!-- 欢迎页状态下消息列表不渲染，错误横幅单独显示在输入区上方 -->
@@ -72,6 +74,7 @@
     thinkMode: { type: Boolean, default: false },
     error: { type: String, default: null },
     canRetry: { type: Boolean, default: false },
+    canContinue: { type: Boolean, default: false },
     streamingContent: { type: String, default: '' },
     streamingReasoning: { type: String, default: '' },
     config: {

@@ -166,7 +166,7 @@
   const versionsScroll = ref(null);
   // 手风琴状态：同一时间只展开一个分组
   const usageOpen = ref(false);
-  const versionsOpen = ref(true);
+  const versionsOpen = ref(false);
 
   // 「使用说明」的序号渲染时按顺序派生，数据里无需手写
   const usageLines = computed(() => {
