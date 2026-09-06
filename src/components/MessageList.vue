@@ -62,12 +62,38 @@
 
     <div v-if="isStreaming" class="py-3 animate-fade-in">
       <div class="max-w-3xl mx-auto">
-        <!-- 流式渲染始终输出完整累积内容的 markdown（与最终消息一致），150ms 节流控制重排频率；
-             思考与正文拆成两个节点：正文更新时思考块 DOM 静止，收起/展开状态不会被打断 -->
-        <div ref="streamingRef" class="block max-w-full text-[14.5px] leading-relaxed text-slate-800 dark:text-[#ececec]">
-          <div v-if="throttledReasoning" class="mb-3" v-html="streamingThinkingHtml"></div>
-          <div v-if="throttledContent" v-html="streamingContentHtml"></div>
-          <div v-if="!throttledReasoning && !throttledContent" class="typing-indicator">
+        <!-- 增量渲染：累积内容按顶层块切开，已定型的块原样复用（DOM 完全静止），
+             只有最后一块随分片刷新 —— 不再每 150ms 整段推倒重来。
+             思考块外壳是模板静态结构，收起状态由响应式变量驱动，内容更新不会打断它。
+             message-content 保证输出过程中的排版与落库后完全一致 -->
+        <div
+          ref="streamingRef"
+          class="message-content block max-w-full text-[14.5px] leading-relaxed text-slate-800 dark:text-[#ececec]"
+        >
+          <div
+            v-if="thinkingBlocks.length || activeThinkingHtml"
+            class="thinking-block"
+            :class="{ collapsed: thinkingCollapsed }"
+          >
+            <div class="thinking-header">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 16v-4M12 8h.01" />
+              </svg>
+              <span>深度思考</span>
+            </div>
+            <div class="thinking-body">
+              <div class="thinking-body-inner">
+                <div v-for="(b, i) in thinkingBlocks" :key="'t' + i" v-html="b.html"></div>
+                <div v-if="activeThinkingHtml" v-html="activeThinkingHtml"></div>
+              </div>
+            </div>
+          </div>
+
+          <div v-for="(b, i) in contentBlocks" :key="'c' + i" v-html="b.html"></div>
+          <div v-if="activeContentHtml" v-html="activeContentHtml"></div>
+
+          <div v-if="!hasAnyStreamContent" class="typing-indicator">
             <span class="dark:bg-[#6e6e6e] bg-slate-400"></span><span class="dark:bg-[#6e6e6e] bg-slate-400"></span><span class="dark:bg-[#6e6e6e] bg-slate-400"></span>
           </div>
         </div>
@@ -111,9 +137,9 @@
 </template>
 
 <script setup>
-  import { ref, computed, watch, onMounted, nextTick } from 'vue';
+  import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
   import { formatFileSize, safeUrl, toggleHeight } from '../utils/helpers';
-  import { buildThinkingAndContent, highlightCode, escapeHtml, renderMarkdown } from '../utils/markdown';
+  import { buildThinkingAndContent, highlightCode, escapeHtml, renderMarkdown, splitMarkdownBlocks } from '../utils/markdown';
   import ErrorBanner from './ErrorBanner.vue';
   import Lightbox from './Lightbox.vue';
 
@@ -151,31 +177,112 @@
   // 换一批消息（切换/重载会话）时必须重置——DOM 会按默认展开重新渲染，
   // 否则再次打开历史会话时收起逻辑被旧记录跳过，思考块就「自动展开」了
   let autoCollapsed = {};
-  // 流式期间节流高亮，避免每个分片都重排整段 HTML
-  let lastHighlightAt = 0;
+  // ===== 流式渲染：增量块 =====
+  // 不再「每 150ms 把整篇重新 parse 一遍再整段 v-html 覆盖」，而是按顶层块切开：
+  // 已定型的块原样复用（raw 未变 → html 不变 → Vue 不 patch → DOM 完全静止），
+  // 只有最后一块（仍在增长）重新渲染。已定型的代码块、思考块收起状态因此不再被冲掉。
+  const RENDER_INTERVAL = 150;
 
-  // 流式渲染：始终渲染完整累积内容的 markdown（与最终消息完全一致，
-  // 代码块、表格等跨段结构不会断裂），150ms 节流控制重排频率；
-  // 思考与正文拆成两个节点：正文更新时思考块 DOM 静止，收起/展开状态不会被打断
-  const throttledReasoning = ref('');
-  const throttledContent = ref('');
+  const contentBlocks = ref([]);      // [{ raw, html }] 已定型的正文块
+  const activeContentHtml = ref('');  // 仍在增长的正文块
+  const thinkingBlocks = ref([]);
+  const activeThinkingHtml = ref('');
+  // 收起/展开必须是响应式状态：此前用命令式改 class，内容一更新（v-html 重建）就被冲掉
+  const thinkingCollapsed = ref(false);
+  let thinkingAutoCollapsed = false;
+
   let lastRenderAt = 0;
+  let trailingTimer = null;
+  let wasStreaming = false;
+
+  const hasAnyStreamContent = computed(
+    () =>
+      !!(
+        activeContentHtml.value ||
+        contentBlocks.value.length ||
+        activeThinkingHtml.value ||
+        thinkingBlocks.value.length
+      )
+  );
+
+  // raw 未变的块直接复用旧对象，html 字符串相同则 Vue 不会 patch 该节点
+  function mergeBlocks(prev, stableList) {
+    const next = [];
+    for (let i = 0; i < stableList.length; i++) {
+      next.push(
+        prev[i] && prev[i].raw === stableList[i]
+          ? prev[i]
+          : { raw: stableList[i], html: renderMarkdown(stableList[i]) }
+      );
+    }
+    return next;
+  }
+
+  function renderStreaming() {
+    const c = splitMarkdownBlocks(props.streamingContent);
+    contentBlocks.value = mergeBlocks(contentBlocks.value, c.stable);
+    activeContentHtml.value = c.active ? renderMarkdown(c.active) : '';
+
+    const r = splitMarkdownBlocks(props.streamingReasoning);
+    thinkingBlocks.value = mergeBlocks(thinkingBlocks.value, r.stable);
+    activeThinkingHtml.value = r.active ? renderMarkdown(r.active) : '';
+
+    // 正文开始出现说明思考已输出完，自动收起一次；用户之后手动展开不会被压回
+    if (props.streamingContent && !thinkingAutoCollapsed) {
+      thinkingAutoCollapsed = true;
+      thinkingCollapsed.value = true;
+    }
+  }
+
+  function flushStream() {
+    lastRenderAt = Date.now();
+    renderStreaming();
+    // 渲染后同一帧内高亮：活动块重建完立刻上色，不存在「纯文本 → 上色」的闪烁窗口
+    nextTick(() => {
+      highlightCode(streamingRef.value);
+      scrollToBottom();
+    });
+  }
 
   watch(
     () => [props.streamingContent, props.streamingReasoning, props.isStreaming],
-    ([content, reasoning, streaming]) => {
-      const now = Date.now();
-      // 流式进行中按 150ms 节流；开始/结束时立即刷新，保证最终内容完整准确
-      if (streaming && now - lastRenderAt < 150) return;
-      lastRenderAt = now;
-      throttledReasoning.value = reasoning;
-      throttledContent.value = content;
+    ([, , streaming]) => {
+      if (streaming && !wasStreaming) {
+        // 新一轮开始：清掉上一轮残留，收起状态一并复位
+        contentBlocks.value = [];
+        thinkingBlocks.value = [];
+        activeContentHtml.value = '';
+        activeThinkingHtml.value = '';
+        thinkingCollapsed.value = false;
+        thinkingAutoCollapsed = false;
+        lastRenderAt = 0;
+      }
+      wasStreaming = streaming;
+
+      if (!streaming) {
+        // 结束时立即补齐，保证界面内容与最终落库一致
+        if (trailingTimer) {
+          clearTimeout(trailingTimer);
+          trailingTimer = null;
+        }
+        flushStream();
+        return;
+      }
+
+      const wait = RENDER_INTERVAL - (Date.now() - lastRenderAt);
+      if (wait <= 0) {
+        flushStream();
+        return;
+      }
+      // 被节流丢掉的帧要补做，否则上游静默（模型思考、网络抖动）时最后一段会迟迟不显示
+      if (trailingTimer) return;
+      trailingTimer = setTimeout(() => {
+        trailingTimer = null;
+        if (props.isStreaming) flushStream();
+      }, wait);
     },
     { immediate: true }
   );
-
-  const streamingThinkingHtml = computed(() => buildThinkingAndContent(throttledReasoning.value, ''));
-  const streamingContentHtml = computed(() => renderMarkdown(throttledContent.value));
 
   // immediate：从欢迎页首次进入会话时组件是新挂载的，需要对初始消息就执行
   // 高亮与思考块收起（watcher 默认不响应初始值）
@@ -195,31 +302,17 @@
     { deep: true, immediate: true }
   );
 
-  watch(
-    () => props.streamingContent,
-    () => {
-      nextTick(() => {
-        highlightStreaming();
-        autoCollapseStreamingThinking();
-        scrollToBottom();
-      });
-    }
-  );
-
-  watch(
-    () => props.streamingReasoning,
-    () => {
-      nextTick(() => {
-        highlightStreaming();
-        autoCollapseStreamingThinking();
-        scrollToBottom();
-      });
-    }
-  );
-
   onMounted(() => {
     // 初次渲染完成时滚到底（userAtBottom 默认 true）
     scrollToBottom();
+  });
+
+  onBeforeUnmount(() => {
+    // 组件可能在流式过程中被切走（如回到欢迎页），补帧定时器要清掉
+    if (trailingTimer) {
+      clearTimeout(trailingTimer);
+      trailingTimer = null;
+    }
   });
 
   function renderMessageContent(msg) {
@@ -268,45 +361,11 @@
     nodes.forEach(el => highlightCode(el));
   }
 
-  function highlightStreaming() {
-    const el = streamingRef.value;
-    if (!el || !props.isStreaming) return;
-    const now = Date.now();
-    if (now - lastHighlightAt < 200) return;
-    lastHighlightAt = now;
-    highlightCode(el);
-  }
-
-  // 立即收起思考块（不带动画）：高度直接归零，避免每 token 重渲染时反复触发动画
+  // 历史消息收起：只加 class，高度归零交给 CSS（.thinking-block.collapsed .thinking-body）。
+  // 不再写 inline height —— 那会和内容更新抢控制权
   function collapseThinking(block) {
     if (block.classList.contains('collapsed')) return;
     block.classList.add('collapsed');
-    const body = block.querySelector('.thinking-body');
-    if (body) body.style.height = '0px';
-  }
-
-  // 本次流式是否已自动收起过思考块：只在正文首次出现时收起一次。
-  // 不加标记的话每个 token 都会重新收起，用户手动展开会被立刻压回，
-  // 表现为思考块反复弹跳（抖动）、输出期间无法展开
-  let streamThinkingAutoCollapsed = false;
-
-  watch(
-    () => props.isStreaming,
-    val => {
-      // 新一轮请求开始时重置，下一段思考输出完毕后仍会自动收起
-      if (val) streamThinkingAutoCollapsed = false;
-    }
-  );
-
-  // 流式期间：正文一旦出现，说明思考已全部输出，自动收起思考块（仅一次）
-  function autoCollapseStreamingThinking() {
-    if (!props.streamingContent || streamThinkingAutoCollapsed) return;
-    const el = streamingRef.value;
-    if (!el) return;
-    const block = el.querySelector('.thinking-block');
-    if (!block) return;
-    streamThinkingAutoCollapsed = true;
-    collapseThinking(block);
   }
 
   // 历史消息：思考与正文齐全的，说明思考已完整输出，默认收起
@@ -328,6 +387,15 @@
     if (!header) return;
     const block = header.closest('.thinking-block');
     if (!block) return;
+
+    // 流式区的思考块：状态由响应式变量驱动，内容增量更新不会把它冲掉
+    if (streamingRef.value && streamingRef.value.contains(block)) {
+      // 用户手动操作过之后，不再被自动收起覆盖
+      thinkingAutoCollapsed = true;
+      thinkingCollapsed.value = !thinkingCollapsed.value;
+      return;
+    }
+
     const body = block.querySelector('.thinking-body');
     if (!body) return;
 

@@ -3,7 +3,7 @@
     <ChatPanel
       :conversations="conversations"
       :current-id="currentId"
-      :messages="messages"
+      :messages="visibleMessages"
       :is-collapsed="isCollapsed"
       :is-streaming="isStreaming"
       :think-mode="thinkMode"
@@ -30,7 +30,7 @@
 </template>
 
 <script setup>
-  import { ref, onMounted, onBeforeUnmount } from 'vue';
+  import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
   import ChatPanel from './components/index.vue';
   import { generateId } from './utils/helpers';
   import {
@@ -130,15 +130,26 @@
     }
   }
 
-  async function loadMessages(id) {
+  function endStreaming() {
+    isStreaming.value = false;
+    streamingContent.value = '';
+    streamingReasoning.value = '';
+  }
+
+  // endStream=true 时，消息落地与结束流式在同一次 tick 内完成。
+  // 否则中间会 flush 一帧：已落库的消息和流式气泡同时渲染，同一段回复出现两份，
+  // 下一帧气泡消失又回落 —— 表现为收尾时的跳动
+  async function loadMessages(id, endStream) {
     try {
       const data = await fetchConversation(id);
       messages.value = data.messages || [];
       // 最后一条助手消息带有中断标记时，从历史打开也显示「继续生成」
       const last = messages.value[messages.value.length - 1];
       interrupted.value = !!(last && last.role === 'assistant' && last.interrupted);
+      if (endStream) endStreaming();
     } catch (err) {
       console.error('加载消息失败:', err);
+      if (endStream) endStreaming();
     }
   }
 
@@ -192,7 +203,9 @@
 
   // 读取 SSE 流：增量写入 streaming 状态，返回 { completed, rolledBack }。
   // onError：收到错误事件时的附加处理（如记录可重试消息）
-  async function consumeStream(res, onError) {
+  // prefix：继续生成时传入原消息的正文/思考前缀 —— SSE 里的 content 只含续写部分，
+  // 拼上前缀后与最终落库的合并结果一致，界面全程显示完整回复
+  async function consumeStream(res, onError, prefix = { content: '', reasoning: '' }) {
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
@@ -219,9 +232,9 @@
             rolledBack = !!data.rolledBack;
             if (onError) onError();
           } else {
-            if (data.content !== undefined) streamingContent.value = data.content;
+            if (data.content !== undefined) streamingContent.value = prefix.content + data.content;
             if (data.reasoning_content !== undefined)
-              streamingReasoning.value = data.reasoning_content;
+              streamingReasoning.value = prefix.reasoning + data.reasoning_content;
           }
           if (data.done) completed = true;
         } catch (e) {
@@ -232,13 +245,29 @@
     return { completed, rolledBack };
   }
 
-  // 继续生成：让模型从上一次被中断的回复处续写（不新增用户消息，续写内容作为新回复落库）
+  // 继续生成期间隐藏被续写的原消息，由流式气泡（原文前缀 + 续写内容）顶替它的位置，
+  // 否则原消息和气泡会同时出现，同一段回复分成两段
+  const continueTargetId = ref(null);
+  const visibleMessages = computed(() =>
+    continueTargetId.value
+      ? messages.value.filter(m => m.id !== continueTargetId.value)
+      : messages.value
+  );
+
+  // 继续生成：让模型从上一次被中断的回复处续写（不新增用户消息，续写内容合并回原消息落库）
   async function handleContinueGeneration() {
     if (isStreaming.value || !currentId.value) return;
+    const target = messages.value[messages.value.length - 1];
+    if (!target || target.role !== 'assistant') return;
+
     interrupted.value = false;
     isStreaming.value = true;
-    streamingContent.value = '';
-    streamingReasoning.value = '';
+    // 以原文为前缀：气泡从原消息的已有内容开始，续写接在后面，视觉上是无缝续写
+    const contentPrefix = target.content || '';
+    const reasoningPrefix = target.reasoningContent || '';
+    streamingContent.value = contentPrefix;
+    streamingReasoning.value = reasoningPrefix;
+    continueTargetId.value = target.id;
     abortController = new AbortController();
     let abortedByUser = false;
     let completed = false;
@@ -266,28 +295,43 @@
         throw new Error(message);
       }
 
-      const { completed: streamCompleted } = await consumeStream(res);
+      const { completed: streamCompleted } = await consumeStream(res, null, {
+        content: contentPrefix,
+        reasoning: reasoningPrefix
+      });
       completed = streamCompleted;
       await loadConversations();
-      await loadMessages(currentId.value);
+      // 落库内容 = 前缀 + 续写，与气泡正在显示的完全一致。
+      // 消息恢复显示、气泡移除、结束流式必须在同一次 tick，切换才无感
+      const data = await fetchConversation(currentId.value);
+      messages.value = data.messages || [];
+      continueTargetId.value = null;
+      endStreaming();
     } catch (err) {
       if (err.name === 'AbortError') {
         console.log('用户中断继续生成');
         abortedByUser = true;
+        // 不刷新：服务端在断开后才异步落库，立刻刷新会拉到没合并续写内容的旧数据。
+        // 直接把气泡里显示的完整内容（含前缀）写回原消息，并保留中断标记
+        target.content = streamingContent.value;
+        target.reasoningContent = streamingReasoning.value || target.reasoningContent;
+        target.interrupted = true;
+        interrupted.value = true;
       } else {
         console.error('继续生成失败:', err);
         error.value = err.message || '继续生成失败';
       }
     } finally {
-      isStreaming.value = false;
-      streamingContent.value = '';
-      streamingReasoning.value = '';
       abortController = null;
-      // 续写被中断：已生成的部分已由服务端落库，刷新后继续提供「继续生成」入口
-      if (!completed) {
+      if (abortedByUser) {
+        // 原消息已本地合并，恢复显示与结束流式同 tick，无缝交接
+        continueTargetId.value = null;
+        endStreaming();
+      } else if (!completed) {
+        // 出错：重新拉会话，原消息（含中断标记）恢复显示
         await loadConversations();
-        await loadMessages(currentId.value);
-        if (abortedByUser) interrupted.value = true;
+        await loadMessages(currentId.value, true);
+        continueTargetId.value = null;
       }
     }
   }
@@ -324,6 +368,7 @@
         : undefined;
 
     let completed = false;
+    let abortedByUser = false;
     // 首轮失败被服务端回滚：消息只存在于本地界面，不能刷新列表，否则会被清空回欢迎页
     let rolledBack = false;
 
@@ -365,13 +410,26 @@
       // done 事件或流意外结束：都要从库刷新，助手消息才会出现在界面上
       if (!rolledBack) {
         await loadConversations();
-        await loadMessages(conversationId);
+        await loadMessages(conversationId, true);
       }
     } catch (err) {
       if (err.name === 'AbortError') {
         console.log('用户中断生成');
-        // 已生成的部分内容已落库，显示「继续生成」入口
+        abortedByUser = true;
         interrupted.value = true;
+        // 已生成的部分直接在本地固化为一条中断消息。
+        // 不走「刷新会话」：服务端在连接断开后才异步落库，立刻刷新会拉到旧数据，
+        // 表现为这条回复整个丢失、只剩用户消息，「继续生成」入口也不出现
+        if (streamingContent.value || streamingReasoning.value) {
+          messages.value.push({
+            id: 'local-' + generateId(),
+            role: 'assistant',
+            content: streamingContent.value,
+            reasoningContent: streamingReasoning.value || null,
+            interrupted: true,
+            timestamp: new Date().toISOString()
+          });
+        }
       } else {
         console.error('聊天请求失败:', err);
         error.value = err.message || '请求失败，请检查网络连接或 API 配置';
@@ -379,17 +437,19 @@
         rolledBack = !!err.rolledBack;
       }
     } finally {
-      isStreaming.value = false;
-      streamingContent.value = '';
-      streamingReasoning.value = '';
       abortController = null;
       // 本次发送没出过错才清掉失败记录，保证横幅上的“重试”始终有据可依
       if (!error.value) lastFailed.value = null;
-      // 异常或中断时也要同步一次，避免已落库的回复在界面上丢失。
-      // 回滚的首轮除外：消息已从库中删除，刷新会把界面清空回欢迎页
-      if (!completed && !rolledBack) {
+      // 异常时同步一次，避免已落库的回复在界面上丢失。
+      // 回滚的首轮除外：消息已从库中删除，刷新会把界面清空回欢迎页。
+      // 用户中断除外：部分内容已本地固化，无需也不应再刷新（会与服务端落库竞态）
+      if (!completed && !rolledBack && !abortedByUser) {
         loadConversations();
-        loadMessages(conversationId);
+        loadMessages(conversationId, true);
+      } else {
+        // 中断：消息不走刷新（会与服务端异步落库竞态），但会话/标题需要进侧边栏
+        if (abortedByUser) loadConversations();
+        endStreaming();
       }
     }
   }

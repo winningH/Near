@@ -437,7 +437,7 @@ html:not(.dark) .message-content hr {
 .thinking-body {
   overflow: hidden;
   opacity: 1;
-  transition: opacity 0.25s ease;
+  transition: opacity 0.25s ease, height 0.25s ease;
 }
 
 .thinking-body-inner {
@@ -452,7 +452,10 @@ html:not(.dark) .message-content hr {
   margin-bottom: 6px;
 }
 
+/* 收起时的高度归零放在 CSS 里：此前由 JS 写 inline height，
+   一旦内容更新重建 DOM，inline 样式连同 class 一起丢失，思考块就会自动弹开 */
 .thinking-block.collapsed .thinking-body {
+  height: 0;
   opacity: 0;
 }
 
